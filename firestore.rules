@@ -115,6 +115,29 @@ service cloud.firestore {
              (!('note' in data) || (data.note is string && data.note.size() <= 250));
     }
 
+    function isValidCertificate(data) {
+      return data.keys().hasAll(['id', 'student_id', 'student_name', 'type', 'title', 'academic_year', 'ownerId']) &&
+             data.keys().hasOnly(['id', 'student_id', 'student_name', 'student_code', 'classroom_id', 'classroom_name', 'type', 'title', 'subtitle', 'subject_name', 'academic_year', 'issue_date', 'school_name', 'homeroom_teacher', 'principal_name', 'theme_color', 'notes', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.student_id is string && data.student_id.size() <= 128 &&
+             data.student_name is string && data.student_name.size() > 0 && data.student_name.size() <= 150 &&
+             data.type in ['academic_excellence', 'top_subject', 'outstanding_improvement', 'desirable_conduct', 'student_activity', 'custom'] &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.academic_year is string && data.academic_year.size() <= 20 &&
+             data.ownerId is string && data.ownerId.size() <= 128 &&
+             (!('student_code' in data) || (data.student_code is string && data.student_code.size() <= 30)) &&
+             (!('classroom_id' in data) || (data.classroom_id is string && data.classroom_id.size() <= 128)) &&
+             (!('classroom_name' in data) || (data.classroom_name is string && data.classroom_name.size() <= 100)) &&
+             (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 250)) &&
+             (!('subject_name' in data) || (data.subject_name is string && data.subject_name.size() <= 150)) &&
+             (!('issue_date' in data) || (data.issue_date is string && data.issue_date.size() <= 100)) &&
+             (!('school_name' in data) || (data.school_name is string && data.school_name.size() <= 200)) &&
+             (!('homeroom_teacher' in data) || (data.homeroom_teacher is string && data.homeroom_teacher.size() <= 150)) &&
+             (!('principal_name' in data) || (data.principal_name is string && data.principal_name.size() <= 150)) &&
+             (!('theme_color' in data) || data.theme_color in ['gold', 'blue', 'emerald', 'crimson']) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 250));
+    }
+
     // Test connection doc
     match /test/connection {
       allow read: if true;
@@ -188,6 +211,14 @@ service cloud.firestore {
       allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreId) && isValidScore(incoming()) &&
                       incoming().diff(existing()).affectedKeys().hasOnly(['score', 'status', 'note', 'updated_at', 'updatedAt']);
       allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreId);
+    }
+
+    // Certificates collection
+    match /certificates/{certificateId} {
+      allow read: if true;
+      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(certificateId) && isValidCertificate(incoming());
+      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(certificateId) && isValidCertificate(incoming());
+      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(certificateId);
     }
   }
 }

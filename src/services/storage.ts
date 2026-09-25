@@ -1,4 +1,4 @@
-import { Classroom, Student, Subject, Term, ScoreItem, Score, User } from '../types';
+import { Classroom, Student, Subject, Term, ScoreItem, Score, User, Certificate, CertificateSettings } from '../types';
 
 const STORAGE_KEYS = {
   STUDENTS: 'gradebook_students_v2',
@@ -10,7 +10,81 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'gradebook_current_user_v1',
   CLASSROOMS: 'gradebook_classrooms_v2',
   CURRENT_CLASSROOM_ID: 'gradebook_current_classroom_id_v2',
+  CERTIFICATES: 'gradebook_certificates_v1',
+  CERTIFICATE_SETTINGS: 'gradebook_cert_settings_v1',
 };
+
+export const INITIAL_CERTIFICATE_SETTINGS: CertificateSettings = {
+  school_name: 'โรงเรียนอนุบาลพัฒนาการศึกษา',
+  academic_year: '2568',
+  issue_date: '๒๕ มีนาคม ๒๕๖๘',
+  principal_name: 'นายประเสริฐ สุขสวัสดิ์',
+  homeroom_teacher: 'ครูสมศรี จิตเมตตา',
+  default_theme: 'gold',
+  school_logo_type: 'garuda',
+  sign_mode: 'digital',
+};
+
+export const INITIAL_CERTIFICATES: Certificate[] = [
+  {
+    id: 'cert-1',
+    student_id: 'stu-1',
+    student_name: 'เด็กชายกฤษณะ พงษ์ศิริ',
+    student_code: '50101',
+    classroom_id: 'room-p5-1',
+    classroom_name: 'ป.5/1',
+    type: 'academic_excellence',
+    title: 'เกียรติบัตรผลการเรียนดีเยี่ยมยอด',
+    subtitle: 'ได้รับผลการเรียนเฉลี่ยสะสม 4.00 (เกียรตินิยมอันดับ 1)',
+    academic_year: '2568',
+    issue_date: '๒๕ มีนาคม ๒๕๖๘',
+    school_name: 'โรงเรียนอนุบาลพัฒนาการศึกษา',
+    homeroom_teacher: 'ครูสมศรี จิตเมตตา',
+    principal_name: 'นายประเสริฐ สุขสวัสดิ์',
+    theme_color: 'gold',
+    notes: 'ตั้งใจเรียน มีความขยันหมั่นเพียรและผลการเรียนยอดเยี่ยม',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'cert-2',
+    student_id: 'stu-10',
+    student_name: 'เด็กหญิงกัญญารัตน์ ชัยชนะ',
+    student_code: '50110',
+    classroom_id: 'room-p5-1',
+    classroom_name: 'ป.5/1',
+    type: 'top_subject',
+    title: 'เกียรติบัตรคะแนนยอดเยี่ยมประจำวิชา',
+    subtitle: 'ได้คะแนนสูงสุดอันดับ 1 ในกลุ่มสาระการเรียนรู้ภาษาไทย',
+    subject_name: 'ภาษาไทย',
+    academic_year: '2568',
+    issue_date: '๒๕ มีนาคม ๒๕๖๘',
+    school_name: 'โรงเรียนอนุบาลพัฒนาการศึกษา',
+    homeroom_teacher: 'ครูสมศรี จิตเมตตา',
+    principal_name: 'นายประเสริฐ สุขสวัสดิ์',
+    theme_color: 'blue',
+    notes: 'มีทักษะการอ่าน เขียน และการสื่อสารภาษาไทยอย่างโดดเด่น',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'cert-3',
+    student_id: 'stu-12',
+    student_name: 'เด็กหญิงณิชารีย์ สว่างวงศ์',
+    student_code: '50112',
+    classroom_id: 'room-p5-1',
+    classroom_name: 'ป.5/1',
+    type: 'desirable_conduct',
+    title: 'เกียรติบัตรคุณธรรม จริยธรรม และจิตอาสาดีเด่น',
+    subtitle: 'มีคุณลักษณะอันพึงประสงค์ระดับดีเยี่ยม และเสียสละเพื่อส่วนรวม',
+    academic_year: '2568',
+    issue_date: '๒๕ มีนาคม ๒๕๖๘',
+    school_name: 'โรงเรียนอนุบาลพัฒนาการศึกษา',
+    homeroom_teacher: 'ครูสมศรี จิตเมตตา',
+    principal_name: 'นายประเสริฐ สุขสวัสดิ์',
+    theme_color: 'emerald',
+    notes: 'ประพฤติตนเป็นแบบอย่างที่ดี มีจิตสาธารณะ ช่วยเหลือกิจกรรมโรงเรียนสม่ำเสมอ',
+    createdAt: new Date().toISOString(),
+  },
+];
 
 export const INITIAL_USER: User = {
   id: 'user-somsri',
@@ -278,6 +352,12 @@ export const storage = {
       const items = generateDefaultScoreItems(INITIAL_SUBJECTS, INITIAL_TERMS);
       const scores = generateDefaultScores(students, items);
       localStorage.setItem(STORAGE_KEYS.SCORES, JSON.stringify(scores));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.CERTIFICATES)) {
+      localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(INITIAL_CERTIFICATES));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.CERTIFICATE_SETTINGS)) {
+      localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(INITIAL_CERTIFICATE_SETTINGS));
     }
   },
 
@@ -633,6 +713,76 @@ export const storage = {
     this.saveScores(Array.from(scoreMap.values()));
   },
 
+  // Certificates
+  getCertificates(classroomId?: string): Certificate[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.CERTIFICATES);
+    const list: Certificate[] = raw ? JSON.parse(raw) : INITIAL_CERTIFICATES;
+    if (classroomId) {
+      return list.filter(c => !c.classroom_id || c.classroom_id === classroomId);
+    }
+    return list;
+  },
+
+  getAllCertificates(): Certificate[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.CERTIFICATES);
+    return raw ? JSON.parse(raw) : INITIAL_CERTIFICATES;
+  },
+
+  saveCertificates(certificates: Certificate[]) {
+    localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(certificates));
+  },
+
+  addCertificate(cert: Omit<Certificate, 'id'>): Certificate {
+    const certs = this.getAllCertificates();
+    const newCert: Certificate = {
+      ...cert,
+      id: `cert-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      createdAt: cert.createdAt || new Date().toISOString(),
+    };
+    certs.unshift(newCert);
+    this.saveCertificates(certs);
+    return newCert;
+  },
+
+  batchAddCertificates(newCerts: Array<Omit<Certificate, 'id'>>) {
+    const certs = this.getAllCertificates();
+    const created: Certificate[] = [];
+    newCerts.forEach((c, index) => {
+      const item: Certificate = {
+        ...c,
+        id: `cert-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`,
+        createdAt: c.createdAt || new Date().toISOString(),
+      };
+      certs.unshift(item);
+      created.push(item);
+    });
+    this.saveCertificates(certs);
+    return created;
+  },
+
+  updateCertificate(cert: Certificate) {
+    const certs = this.getAllCertificates();
+    const idx = certs.findIndex(c => c.id === cert.id);
+    if (idx !== -1) {
+      certs[idx] = { ...cert, updatedAt: new Date().toISOString() };
+      this.saveCertificates(certs);
+    }
+  },
+
+  deleteCertificate(certId: string) {
+    const certs = this.getAllCertificates().filter(c => c.id !== certId);
+    this.saveCertificates(certs);
+  },
+
+  getCertificateSettings(): CertificateSettings {
+    const raw = localStorage.getItem(STORAGE_KEYS.CERTIFICATE_SETTINGS);
+    return raw ? JSON.parse(raw) : INITIAL_CERTIFICATE_SETTINGS;
+  },
+
+  saveCertificateSettings(settings: CertificateSettings) {
+    localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(settings));
+  },
+
   // Full Database Backup & Reset
   exportDatabase() {
     return {
@@ -646,6 +796,8 @@ export const storage = {
       terms: this.getTerms(),
       score_items: this.getScoreItems(),
       scores: this.getScores(),
+      certificates: this.getAllCertificates(),
+      certificate_settings: this.getCertificateSettings(),
     };
   },
 
@@ -661,6 +813,8 @@ export const storage = {
     if (jsonData.terms) localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(jsonData.terms));
     if (jsonData.score_items) localStorage.setItem(STORAGE_KEYS.SCORE_ITEMS, JSON.stringify(jsonData.score_items));
     if (jsonData.scores) localStorage.setItem(STORAGE_KEYS.SCORES, JSON.stringify(jsonData.scores));
+    if (jsonData.certificates) localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(jsonData.certificates));
+    if (jsonData.certificate_settings) localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(jsonData.certificate_settings));
   },
 
   resetToDefault() {
@@ -672,6 +826,8 @@ export const storage = {
     localStorage.removeItem(STORAGE_KEYS.USERS);
     localStorage.removeItem(STORAGE_KEYS.CLASSROOMS);
     localStorage.removeItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID);
+    localStorage.removeItem(STORAGE_KEYS.CERTIFICATES);
+    localStorage.removeItem(STORAGE_KEYS.CERTIFICATE_SETTINGS);
     this.init();
   },
 };

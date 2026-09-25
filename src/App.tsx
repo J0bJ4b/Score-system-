@@ -16,6 +16,7 @@ import { StudentManagementPage } from './pages/StudentManagementPage';
 import { SubjectManagementPage } from './pages/SubjectManagementPage';
 import { SubjectSummaryPage } from './pages/SubjectSummaryPage';
 import { IndividualSummaryPage } from './pages/IndividualSummaryPage';
+import { CertificatePage } from './pages/CertificatePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BackupPage } from './pages/BackupPage';
 import { GoogleSheetsSyncPage } from './pages/GoogleSheetsSyncPage';
@@ -217,6 +218,20 @@ export default function App() {
               user={currentUser}
               classroom={classroomName}
               activeClassroom={activeClassroom}
+            />
+          )}
+
+          {activeTab === 'certificates' && (
+            <CertificatePage
+              students={students}
+              subjects={subjects}
+              allScoreItems={allScoreItems}
+              allScores={allScores}
+              terms={terms}
+              classroom={classroomName}
+              activeClassroom={activeClassroom}
+              user={currentUser}
+              onNavigateToStudentPortal={(stu) => setPortalStudent(stu)}
             />
           )}
 

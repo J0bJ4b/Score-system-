@@ -90,3 +90,46 @@ export interface StudentFullReport {
   gpa: number;
   rank?: number;
 }
+
+export type CertificateType =
+  | 'academic_excellence' // เรียนดีเด่น (GPA >= 3.50 หรือ 4.00)
+  | 'top_subject' // คะแนนยอดเยี่ยมประจำรายวิชา
+  | 'outstanding_improvement' // พัฒนาการเรียนรู้ยอดเยี่ยม
+  | 'desirable_conduct' // คุณธรรม จริยธรรม และคุณลักษณะอันพึงประสงค์
+  | 'student_activity' // กิจกรรมพัฒนาผู้เรียน / ลูกเสือ-เนตรนารี
+  | 'custom'; // กำหนดเอง
+
+export interface Certificate {
+  id: string;
+  student_id: string;
+  student_name: string;
+  student_code?: string;
+  classroom_id?: string;
+  classroom_name?: string;
+  type: CertificateType;
+  title: string;
+  subtitle?: string;
+  subject_name?: string;
+  academic_year: string;
+  issue_date?: string;
+  school_name?: string;
+  homeroom_teacher?: string;
+  principal_name?: string;
+  theme_color?: 'gold' | 'blue' | 'emerald' | 'crimson';
+  notes?: string;
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CertificateSettings {
+  school_name: string;
+  academic_year: string;
+  issue_date: string;
+  principal_name: string;
+  homeroom_teacher: string;
+  default_theme: 'gold' | 'blue' | 'emerald' | 'crimson';
+  school_logo_type: 'garuda' | 'education' | 'seal' | 'none';
+  sign_mode: 'digital' | 'line_only';
+}
+

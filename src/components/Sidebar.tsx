@@ -9,6 +9,7 @@ import {
   Database,
   HelpCircle,
   GraduationCap,
+  Award,
 } from 'lucide-react';
 
 export type NavTab =
@@ -16,6 +17,7 @@ export type NavTab =
   | 'dashboard'
   | 'subject-summary'
   | 'individual-report'
+  | 'certificates'
   | 'students'
   | 'subjects'
   | 'google-sheets'
@@ -63,6 +65,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'รายงานรายบุคคล / ปพ.5',
       sublabel: 'พิมพ์แจกผู้ปกครอง',
       icon: Printer,
+    },
+    {
+      id: 'certificates' as NavTab,
+      label: 'ออกเกียรติบัตร',
+      sublabel: 'ใบประกาศนียบัตรนักเรียน',
+      icon: Award,
+      badge: 'ระบบ 4',
     },
     {
       id: 'students' as NavTab,

@@ -16,11 +16,22 @@
   }
 }
 
+.print-only {
+  display: none;
+}
+
 @media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm;
+  }
+
   body {
     background-color: white !important;
     color: black !important;
     font-size: 11pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   
   .no-print {
@@ -31,9 +42,19 @@
     display: block !important;
   }
 
-  .page-break {
-    page-break-after: always;
-    break-after: page;
+  .page-break,
+  .print-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .certificate-container {
+    width: 100% !important;
+    height: 190mm !important;
+    max-height: 195mm !important;
+    page-break-inside: avoid !important;
+    box-shadow: none !important;
+    margin: 0 auto !important;
   }
 
   .print-card {

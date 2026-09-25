@@ -114,6 +114,34 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "student_id", "score_item_id", "status", "ownerId"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Student certificates, awards, and honor roll recognitions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "student_id": { "type": "string", "maxLength": 128 },
+        "student_name": { "type": "string", "maxLength": 150 },
+        "student_code": { "type": "string", "maxLength": 30 },
+        "classroom_id": { "type": "string", "maxLength": 128 },
+        "classroom_name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["academic_excellence", "top_subject", "outstanding_improvement", "desirable_conduct", "student_activity", "custom"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "subtitle": { "type": "string", "maxLength": 250 },
+        "subject_name": { "type": "string", "maxLength": 150 },
+        "academic_year": { "type": "string", "maxLength": 20 },
+        "issue_date": { "type": "string", "maxLength": 100 },
+        "school_name": { "type": "string", "maxLength": 200 },
+        "homeroom_teacher": { "type": "string", "maxLength": 150 },
+        "principal_name": { "type": "string", "maxLength": 150 },
+        "theme_color": { "type": "string", "enum": ["gold", "blue", "emerald", "crimson"] },
+        "notes": { "type": "string", "maxLength": 250 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "student_id", "student_name", "type", "title", "academic_year", "ownerId"]
     }
   },
   "firestore": {
@@ -144,6 +172,10 @@
     "/scores/{scoreId}": {
       "schema": "Score",
       "description": "Student score records"
+    },
+    "/certificates/{certificateId}": {
+      "schema": "Certificate",
+      "description": "Certificates and awards issued to students"
     }
   }
 }
