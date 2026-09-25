@@ -15,6 +15,8 @@ import {
   X,
   Layers,
   GraduationCap,
+  CreditCard,
+  QrCode,
 } from 'lucide-react';
 
 interface StudentManagementPageProps {
@@ -26,6 +28,7 @@ interface StudentManagementPageProps {
   onNavigateToSheets?: () => void;
   onOpenClassroomManager?: () => void;
   onViewStudentPortal?: (student: Student) => void;
+  onNavigateToIdCards?: () => void;
 }
 
 export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
@@ -37,6 +40,7 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
   onNavigateToSheets,
   onOpenClassroomManager,
   onViewStudentPortal,
+  onNavigateToIdCards,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -268,6 +272,17 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
               <FileSpreadsheet className="w-4 h-4" />
               <span>นำเข้าจาก Excel/CSV</span>
             </button>
+
+            {onNavigateToIdCards && (
+              <button
+                type="button"
+                onClick={onNavigateToIdCards}
+                className="px-3 py-2 text-xs sm:text-sm font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition-colors flex items-center gap-1.5 border border-blue-200 cursor-pointer"
+              >
+                <CreditCard className="w-4 h-4 text-blue-600" />
+                <span>พิมพ์บัตรนักเรียน & QR</span>
+              </button>
+            )}
 
             {onNavigateToSheets && (
               <button

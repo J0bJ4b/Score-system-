@@ -11,7 +11,7 @@ import {
   CertificateType,
   CertificateSettings,
 } from '../types';
-import { getStudentFullReport } from '../utils/gradeCalculator';
+import { getStudentFullReport, getClassroomRankings } from '../utils/gradeCalculator';
 import { storage } from '../services/storage';
 import {
   Award,
@@ -67,7 +67,7 @@ export const CertificatePage: React.FC<CertificatePageProps> = ({
     storage.getCertificateSettings()
   );
 
-  const [activeTab, setActiveTab] = useState<'issued' | 'auto_detect' | 'manual_issue' | 'settings'>('issued');
+  const [activeTab, setActiveTab] = useState<'ranking' | 'issued' | 'auto_detect' | 'manual_issue' | 'settings'>('ranking');
   const [selectedCertForPreview, setSelectedCertForPreview] = useState<Certificate | null>(
     certificates[0] || null
   );
@@ -75,6 +75,23 @@ export const CertificatePage: React.FC<CertificatePageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [isBatchPrintMode, setIsBatchPrintMode] = useState(false);
+
+  // Compute classroom rankings
+  const rankedStudents = useMemo(() => {
+    return getClassroomRankings(students, subjects, allScoreItems, allScores, terms);
+  }, [students, subjects, allScoreItems, allScores, terms]);
+
+  // Ranking & Honor statistics
+  const rankingStats = useMemo(() => {
+    const total = rankedStudents.length;
+    if (total === 0) return { avgGpa: 0, highHonorCount: 0, honorCount: 0, goodCount: 0, topStudent: null };
+    const avgGpa = Math.round((rankedStudents.reduce((sum, s) => sum + s.gpa, 0) / total) * 100) / 100;
+    const highHonorCount = rankedStudents.filter((s) => s.gpa >= 3.8).length;
+    const honorCount = rankedStudents.filter((s) => s.gpa >= 3.5 && s.gpa < 3.8).length;
+    const goodCount = rankedStudents.filter((s) => s.gpa >= 3.0 && s.gpa < 3.5).length;
+    const topStudent = rankedStudents[0] || null;
+    return { avgGpa, highHonorCount, honorCount, goodCount, topStudent };
+  }, [rankedStudents]);
 
   // Manual Issue Form State
   const [formStudentId, setFormStudentId] = useState(students[0]?.id || '');
@@ -99,7 +116,7 @@ export const CertificatePage: React.FC<CertificatePageProps> = ({
   const autoCandidates = useMemo(() => {
     // Generate full reports for all students in current room
     const reports = students.map((stu) =>
-      getStudentFullReport(stu, subjects, allScoreItems, allScores)
+      getStudentFullReport(stu, subjects, allScoreItems, allScores, terms)
     );
 
     // Sort by GPA descending
@@ -438,6 +455,30 @@ export const CertificatePage: React.FC<CertificatePageProps> = ({
         {/* Tab Switcher */}
         <div className="flex flex-wrap items-center gap-2 mt-5 border-t border-slate-100 pt-4">
           <button
+            onClick={() => setActiveTab('ranking')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'ranking'
+                ? 'bg-amber-500 text-white shadow-xs shadow-amber-200'
+                : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
+            }`}
+          >
+            <Trophy className="w-4 h-4 text-amber-300" />
+            ระบบจัดอันดับ (Ranking) & สถิติ
+          </button>
+
+          <button
+            onClick={() => setActiveTab('auto_detect')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'auto_detect'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            นักเรียนที่ผ่านเกณฑ์รับรางวัล ({autoCandidates.length})
+          </button>
+
+          <button
             onClick={() => setActiveTab('issued')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'issued'
@@ -447,18 +488,6 @@ export const CertificatePage: React.FC<CertificatePageProps> = ({
           >
             <Award className="w-4 h-4" />
             เกียรติบัตรที่ออกแล้ว ({certificates.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('auto_detect')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'auto_detect'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            นักเรียนที่ผ่านเกณฑ์รับรางวัล ({autoCandidates.length})
           </button>
 
           <button
@@ -492,6 +521,268 @@ export const CertificatePage: React.FC<CertificatePageProps> = ({
         <div className="no-print bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl flex items-center gap-2 text-sm font-semibold">
           <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           {formSuccessMessage}
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB 0: RANKING & LEADERBOARD (ระบบจัดอันดับและสถิติเกียรติบัตร)
+          ========================================================================= */}
+      {activeTab === 'ranking' && (
+        <div className="no-print space-y-6">
+          {/* Top 3 Podium Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Rank 2 (Silver) */}
+            {rankedStudents[1] && (
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between order-2 md:order-1 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-16 h-16 bg-slate-100 rounded-bl-3xl flex items-start justify-end p-2 text-slate-400 font-black text-lg">
+                  🥈
+                </div>
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                    อันดับที่ 2 ของห้อง
+                  </span>
+                  <div className="font-bold text-slate-900 text-lg">
+                    {rankedStudents[1].student.name}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    เลขที่ {rankedStudents[1].student.student_no} • รหัส {rankedStudents[1].student.student_code}
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block">เกรดเฉลี่ย (GPA)</span>
+                    <span className="text-xl font-black text-slate-800">{rankedStudents[1].gpa.toFixed(2)}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-slate-400 block">คะแนนดิบรวม</span>
+                    <span className="text-sm font-bold text-slate-700">{rankedStudents[1].totalRawScore} คะแนน</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Rank 1 (Gold - Highlighted) */}
+            {rankedStudents[0] && (
+              <div className="bg-gradient-to-b from-amber-50 to-white p-6 rounded-2xl border-2 border-amber-400 shadow-md flex flex-col justify-between order-1 md:order-2 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-amber-400/20 rounded-bl-3xl flex items-start justify-end p-2.5 text-2xl">
+                  🥇
+                </div>
+                <div className="space-y-2">
+                  <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-900 shadow-xs flex items-center gap-1 w-fit">
+                    <Trophy className="w-3.5 h-3.5 text-amber-900" />
+                    อันดับที่ 1 (ยอดเยี่ยม)
+                  </span>
+                  <div className="font-extrabold text-slate-900 text-xl pt-1">
+                    {rankedStudents[0].student.name}
+                  </div>
+                  <div className="text-xs text-slate-600">
+                    เลขที่ {rankedStudents[0].student.student_no} • รหัส {rankedStudents[0].student.student_code}
+                  </div>
+                  <div className="text-xs font-bold text-amber-800 bg-amber-100/60 px-2 py-1 rounded-lg w-fit">
+                    🌟 {rankedStudents[0].honorTitle || 'เกียรตินิยมอันดับ 1'}
+                  </div>
+                </div>
+
+                <div className="mt-5 pt-3 border-t border-amber-200/80 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-amber-700 font-semibold block">เกรดเฉลี่ย (GPA)</span>
+                    <span className="text-2xl font-black text-amber-900">{rankedStudents[0].gpa.toFixed(2)}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-slate-400 block">คะแนนดิบรวม</span>
+                    <span className="text-base font-black text-slate-800">{rankedStudents[0].totalRawScore} / {rankedStudents[0].maxPossibleRawScore}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Rank 3 (Bronze) */}
+            {rankedStudents[2] && (
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between order-3 md:order-3 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-16 h-16 bg-amber-100/40 rounded-bl-3xl flex items-start justify-end p-2 text-amber-700 font-black text-lg">
+                  🥉
+                </div>
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                    อันดับที่ 3 ของห้อง
+                  </span>
+                  <div className="font-bold text-slate-900 text-lg">
+                    {rankedStudents[2].student.name}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    เลขที่ {rankedStudents[2].student.student_no} • รหัส {rankedStudents[2].student.student_code}
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block">เกรดเฉลี่ย (GPA)</span>
+                    <span className="text-xl font-black text-slate-800">{rankedStudents[2].gpa.toFixed(2)}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-slate-400 block">คะแนนดิบรวม</span>
+                    <span className="text-sm font-bold text-slate-700">{rankedStudents[2].totalRawScore} คะแนน</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Generate Action Banner */}
+          <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-indigo-600 rounded-2xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md shadow-amber-200">
+            <div className="space-y-1 text-center sm:text-left">
+              <div className="flex items-center justify-center sm:justify-start gap-2">
+                <Sparkles className="w-5 h-5 text-amber-200" />
+                <h3 className="font-black text-base sm:text-lg">ออกเกียรติบัตรเรียนดีอัตโนมัติ (Honor Roll Certificates)</h3>
+              </div>
+              <p className="text-xs text-amber-100 max-w-xl">
+                ระบบคำนวณและพร้อมออกเกียรติบัตรสำหรับนักเรียนที่ได้เกรดเฉลี่ย GPA &ge; 3.50 ({autoCandidates.length} รายการ) สามารถคลิกเพื่อสร้างและสั่งพิมพ์ PDF ได้ทันที
+              </p>
+            </div>
+            <button
+              onClick={handleAutoGenerateAll}
+              className="px-5 py-2.5 bg-white hover:bg-slate-100 text-amber-900 rounded-xl text-sm font-black shadow-sm transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0"
+            >
+              <Award className="w-4 h-4 text-amber-600" />
+              <span>ออกเกียรติบัตรทุกคน ({autoCandidates.length} ใบ)</span>
+            </button>
+          </div>
+
+          {/* Full Classroom Leaderboard Table */}
+          <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-slate-800 text-base flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-amber-500" />
+                  ตารางจัดอันดับผลการเรียนทั้งห้อง (Classroom Ranking Table)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  เรียงลำดับตามเกรดเฉลี่ย (GPA) และคะแนนรวมทุกรายวิชา • ห้อง {classroom}
+                </p>
+              </div>
+              <div className="text-xs text-slate-500">
+                รวมทั้งหมด <strong>{rankedStudents.length}</strong> คน
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                    <th className="py-3 px-3 text-center w-16">อันดับ</th>
+                    <th className="py-3 px-3 text-center w-16">เลขที่</th>
+                    <th className="py-3 px-3 w-28">รหัสประจำตัว</th>
+                    <th className="py-3 px-4">ชื่อ - นามสกุล</th>
+                    <th className="py-3 px-3 text-center w-28">คะแนนรวมดิบ</th>
+                    <th className="py-3 px-3 text-center w-28">หน่วยกิต</th>
+                    <th className="py-3 px-3 text-center w-28 font-black text-indigo-900">เกรดเฉลี่ย (GPA)</th>
+                    <th className="py-3 px-3 text-center w-40">เกียรตินิยม / สถานะ</th>
+                    <th className="py-3 px-3 text-center w-28">เกียรติบัตร</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rankedStudents.map((item) => {
+                    const isIssued = certificates.some((c) => c.student_id === item.student.id);
+
+                    return (
+                      <tr
+                        key={item.student.id}
+                        className={`hover:bg-slate-50 transition-colors ${
+                          item.rank === 1
+                            ? 'bg-amber-50/30'
+                            : item.rank === 2
+                            ? 'bg-slate-50/50'
+                            : item.rank === 3
+                            ? 'bg-amber-50/20'
+                            : ''
+                        }`}
+                      >
+                        <td className="py-3 px-3 text-center font-black text-slate-800">
+                          {item.rank === 1 ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-400 text-slate-900 font-black text-xs shadow-xs">
+                              1
+                            </span>
+                          ) : item.rank === 2 ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-300 text-slate-800 font-bold text-xs">
+                              2
+                            </span>
+                          ) : item.rank === 3 ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-600 text-white font-bold text-xs">
+                              3
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 font-semibold">{item.rank}</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center font-medium text-slate-600">
+                          {item.student.student_no}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-xs text-slate-500">
+                          {item.student.student_code}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-800">
+                          {item.student.name}
+                        </td>
+                        <td className="py-3 px-3 text-center font-bold text-slate-700">
+                          {item.totalRawScore} <span className="text-[10px] text-slate-400 font-normal">/ {item.maxPossibleRawScore}</span>
+                        </td>
+                        <td className="py-3 px-3 text-center text-slate-600">
+                          {item.total_credits}
+                        </td>
+                        <td className="py-3 px-3 text-center font-black text-indigo-900 text-base">
+                          {item.gpa.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-3 text-center text-xs">
+                          {item.honorTitle ? (
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full font-bold ${
+                                item.gpa >= 3.8
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : item.gpa >= 3.5
+                                  ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                                  : 'bg-emerald-100 text-emerald-900'
+                              }`}
+                            >
+                              {item.honorTitle}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-xs">ผ่านเกณฑ์</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          {isIssued ? (
+                            <button
+                              onClick={() => {
+                                const found = certificates.find((c) => c.student_id === item.student.id);
+                                if (found) setSelectedCertForPreview(found);
+                                setActiveTab('issued');
+                              }}
+                              className="px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer border border-emerald-200"
+                            >
+                              ✓ ออกแล้ว
+                            </button>
+                          ) : item.gpa >= 3.5 ? (
+                            <button
+                              onClick={() => {
+                                const cand = autoCandidates.find((c) => c.student.id === item.student.id);
+                                if (cand) handleAddSingleCandidate(cand);
+                              }}
+                              className="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors cursor-pointer"
+                            >
+                              + ออกเกียรติบัตร
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

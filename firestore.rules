@@ -138,6 +138,24 @@ service cloud.firestore {
              (!('notes' in data) || (data.notes is string && data.notes.size() <= 250));
     }
 
+    function isValidNotificationLog(data) {
+      return data.keys().hasAll(['id', 'type', 'title', 'message', 'recipient_group', 'status', 'timestamp', 'ownerId']) &&
+             data.keys().hasOnly(['id', 'type', 'title', 'message', 'recipient_group', 'classroom', 'subject_name', 'term_name', 'status', 'timestamp', 'student_count', 'error_message', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.type in ['score_saved', 'midterm_final', 'low_score_alert', 'missing_work_alert', 'custom_broadcast', 'test_ping'] &&
+             data.title is string && data.title.size() <= 200 &&
+             data.message is string && data.message.size() <= 2000 &&
+             data.recipient_group is string && data.recipient_group.size() <= 150 &&
+             data.status in ['success', 'failed', 'simulated'] &&
+             data.timestamp is string &&
+             data.ownerId is string && data.ownerId.size() <= 128 &&
+             (!('classroom' in data) || (data.classroom is string && data.classroom.size() <= 100)) &&
+             (!('subject_name' in data) || (data.subject_name is string && data.subject_name.size() <= 150)) &&
+             (!('term_name' in data) || (data.term_name is string && data.term_name.size() <= 100)) &&
+             (!('student_count' in data) || (data.student_count is number)) &&
+             (!('error_message' in data) || (data.error_message is string && data.error_message.size() <= 500));
+    }
+
     // Test connection doc
     match /test/connection {
       allow read: if true;
@@ -219,6 +237,14 @@ service cloud.firestore {
       allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(certificateId) && isValidCertificate(incoming());
       allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(certificateId) && isValidCertificate(incoming());
       allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(certificateId);
+    }
+
+    // Notification logs collection
+    match /notification_logs/{logId} {
+      allow read: if true;
+      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(logId) && isValidNotificationLog(incoming());
+      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(logId) && isValidNotificationLog(incoming());
+      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(logId);
     }
   }
 }

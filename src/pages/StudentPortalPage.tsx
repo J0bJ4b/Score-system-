@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Student,
   Subject,
@@ -64,6 +64,12 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
   const [searchError, setSearchError] = useState('');
   const [activeViewTab, setActiveViewTab] = useState<'yearly' | 'term-1' | 'term-2'>('yearly');
   const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialStudent) {
+      setSelectedStudent(initialStudent);
+    }
+  }, [initialStudent]);
 
   // Quick lookup handler
   const handleSearch = (e?: React.FormEvent) => {

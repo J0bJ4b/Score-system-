@@ -1,4 +1,4 @@
-import { Classroom, Student, Subject, Term, ScoreItem, Score, User, Certificate, CertificateSettings } from '../types';
+import { Classroom, Student, Subject, Term, ScoreItem, Score, User, Certificate, CertificateSettings, LineNotifySettings, NotificationLog } from '../types';
 
 const STORAGE_KEYS = {
   STUDENTS: 'gradebook_students_v2',
@@ -12,7 +12,51 @@ const STORAGE_KEYS = {
   CURRENT_CLASSROOM_ID: 'gradebook_current_classroom_id_v2',
   CERTIFICATES: 'gradebook_certificates_v1',
   CERTIFICATE_SETTINGS: 'gradebook_cert_settings_v1',
+  LINE_NOTIFY_SETTINGS: 'gradebook_line_notify_settings_v1',
+  NOTIFICATION_LOGS: 'gradebook_notification_logs_v1',
 };
+
+export const INITIAL_LINE_NOTIFY_SETTINGS: LineNotifySettings = {
+  enabled: true,
+  token: '',
+  target_group_name: 'กลุ่มผู้ปกครอง ป.5/1 (โรงเรียนบ้านป่าส่าน)',
+  school_signature: 'โรงเรียนบ้านป่าส่าน',
+  notify_on_score_saved: true,
+  notify_on_midterm_final: true,
+  notify_on_low_score: true,
+  notify_on_missing_or_absent: true,
+  low_score_threshold_percent: 50,
+  auto_notify_enabled: false,
+};
+
+export const INITIAL_NOTIFICATION_LOGS: NotificationLog[] = [
+  {
+    id: 'log-demo-1',
+    type: 'score_saved',
+    title: 'บันทึกคะแนนเก็บวิชาภาษาไทย (ท15101)',
+    message: '📝 [แจ้งเตือนการบันทึกคะแนนเก็บ]\n🏫 โรงเรียน: โรงเรียนบ้านป่าส่าน\n👥 ระดับชั้น/ห้อง: ป.5/1\n📚 รายวิชา: ภาษาไทย (ท15101)\n🗓️ ภาคเรียน: ภาคเรียนที่ 1 ปีการศึกษา 2569\n📌 รายการ: ใบงานที่ 1 การอ่านจับใจความ (เต็ม 10 คะแนน)\n📊 สถานะการบันทึก: บันทึกคะแนนเรียบร้อยแล้ว (20/20 คน)',
+    recipient_group: 'กลุ่มผู้ปกครอง ป.5/1 (โรงเรียนบ้านป่าส่าน)',
+    classroom: 'ป.5/1',
+    subject_name: 'ภาษาไทย',
+    term_name: 'ภาคเรียนที่ 1',
+    status: 'success',
+    timestamp: new Date(Date.now() - 3600000 * 24).toISOString(),
+    student_count: 20,
+  },
+  {
+    id: 'log-demo-2',
+    type: 'low_score_alert',
+    title: 'แจ้งเตือนติดตามงานค้างส่ง (ติด ร / มส)',
+    message: '⚠️ [แจ้งเตือนติดตามงานและคะแนนเก็บ]\n🏫 โรงเรียนบ้านป่าส่าน\n👥 ระดับชั้น: ห้อง ป.5/1\n📚 วิชา: คณิตศาสตร์ (ค15101) - ภาคเรียนที่ 1\nเรียน ท่านผู้ปกครอง ขอความอนุเคราะห์ช่วยติดตามนักเรียน:\n1. เลขที่ 15 เด็กชายธนภัทร\n   ↳ สถานะ: ติด ร (ขาดสอบเก็บคะแนน)',
+    recipient_group: 'กลุ่มผู้ปกครอง ป.5/1 (โรงเรียนบ้านป่าส่าน)',
+    classroom: 'ป.5/1',
+    subject_name: 'คณิตศาสตร์',
+    term_name: 'ภาคเรียนที่ 1',
+    status: 'success',
+    timestamp: new Date(Date.now() - 3600000 * 12).toISOString(),
+    student_count: 1,
+  },
+];
 
 export const INITIAL_CERTIFICATE_SETTINGS: CertificateSettings = {
   school_name: 'โรงเรียนอนุบาลพัฒนาการศึกษา',
@@ -358,6 +402,12 @@ export const storage = {
     }
     if (!localStorage.getItem(STORAGE_KEYS.CERTIFICATE_SETTINGS)) {
       localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(INITIAL_CERTIFICATE_SETTINGS));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS)) {
+      localStorage.setItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS, JSON.stringify(INITIAL_LINE_NOTIFY_SETTINGS));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.NOTIFICATION_LOGS)) {
+      localStorage.setItem(STORAGE_KEYS.NOTIFICATION_LOGS, JSON.stringify(INITIAL_NOTIFICATION_LOGS));
     }
   },
 
@@ -713,6 +763,10 @@ export const storage = {
     this.saveScores(Array.from(scoreMap.values()));
   },
 
+  batchSaveScores(newScores: Array<Omit<Score, 'id'> & { id?: string }>) {
+    this.batchUpsertScores(newScores);
+  },
+
   // Certificates
   getCertificates(classroomId?: string): Certificate[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CERTIFICATES);
@@ -783,6 +837,51 @@ export const storage = {
     localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(settings));
   },
 
+  // LINE Notify & Communication Settings
+  getLineNotifySettings(): LineNotifySettings {
+    const raw = localStorage.getItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS);
+    return raw ? JSON.parse(raw) : INITIAL_LINE_NOTIFY_SETTINGS;
+  },
+
+  saveLineNotifySettings(settings: LineNotifySettings) {
+    localStorage.setItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS, JSON.stringify(settings));
+  },
+
+  // Notification History Logs
+  getNotificationLogs(): NotificationLog[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.NOTIFICATION_LOGS);
+    return raw ? JSON.parse(raw) : INITIAL_NOTIFICATION_LOGS;
+  },
+
+  saveNotificationLogs(logs: NotificationLog[]) {
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATION_LOGS, JSON.stringify(logs));
+  },
+
+  addNotificationLog(log: Omit<NotificationLog, 'id'>): NotificationLog {
+    const logs = this.getNotificationLogs();
+    const newLog: NotificationLog = {
+      ...log,
+      id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp: log.timestamp || new Date().toISOString(),
+    };
+    logs.unshift(newLog);
+    // Keep max 100 latest logs
+    if (logs.length > 100) {
+      logs.splice(100);
+    }
+    this.saveNotificationLogs(logs);
+    return newLog;
+  },
+
+  deleteNotificationLog(id: string) {
+    const logs = this.getNotificationLogs().filter((l) => l.id !== id);
+    this.saveNotificationLogs(logs);
+  },
+
+  clearNotificationLogs() {
+    this.saveNotificationLogs([]);
+  },
+
   // Full Database Backup & Reset
   exportDatabase() {
     return {
@@ -798,6 +897,8 @@ export const storage = {
       scores: this.getScores(),
       certificates: this.getAllCertificates(),
       certificate_settings: this.getCertificateSettings(),
+      line_notify_settings: this.getLineNotifySettings(),
+      notification_logs: this.getNotificationLogs(),
     };
   },
 
@@ -815,6 +916,8 @@ export const storage = {
     if (jsonData.scores) localStorage.setItem(STORAGE_KEYS.SCORES, JSON.stringify(jsonData.scores));
     if (jsonData.certificates) localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(jsonData.certificates));
     if (jsonData.certificate_settings) localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(jsonData.certificate_settings));
+    if (jsonData.line_notify_settings) localStorage.setItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS, JSON.stringify(jsonData.line_notify_settings));
+    if (jsonData.notification_logs) localStorage.setItem(STORAGE_KEYS.NOTIFICATION_LOGS, JSON.stringify(jsonData.notification_logs));
   },
 
   resetToDefault() {
@@ -828,6 +931,8 @@ export const storage = {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID);
     localStorage.removeItem(STORAGE_KEYS.CERTIFICATES);
     localStorage.removeItem(STORAGE_KEYS.CERTIFICATE_SETTINGS);
+    localStorage.removeItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS);
+    localStorage.removeItem(STORAGE_KEYS.NOTIFICATION_LOGS);
     this.init();
   },
 };

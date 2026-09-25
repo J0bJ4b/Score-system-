@@ -16,7 +16,10 @@ import { StudentManagementPage } from './pages/StudentManagementPage';
 import { SubjectManagementPage } from './pages/SubjectManagementPage';
 import { SubjectSummaryPage } from './pages/SubjectSummaryPage';
 import { IndividualSummaryPage } from './pages/IndividualSummaryPage';
+import { Pp5BookPage } from './pages/Pp5BookPage';
+import { StudentIDCardPage } from './pages/StudentIDCardPage';
 import { CertificatePage } from './pages/CertificatePage';
+import { NotificationSettingsPage } from './pages/NotificationSettingsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BackupPage } from './pages/BackupPage';
 import { GoogleSheetsSyncPage } from './pages/GoogleSheetsSyncPage';
@@ -67,6 +70,23 @@ export default function App() {
 
   useEffect(() => {
     reloadData();
+
+    // Check if user arrived via Student ID Card QR Code scan (?student_code=XXXXX)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const codeFromUrl = urlParams.get('student_code') || urlParams.get('code');
+      if (codeFromUrl) {
+        const allStudents = storage.getAllStudents();
+        const matchedStudent = allStudents.find(
+          (s) => s.student_code === codeFromUrl || s.student_code.toLowerCase() === codeFromUrl.toLowerCase()
+        );
+        if (matchedStudent) {
+          setPortalStudent(matchedStudent);
+        }
+      }
+    } catch (e) {
+      console.warn('URL params parse error:', e);
+    }
   }, [reloadData]);
 
   // Sync students whenever active classroom changes
@@ -175,7 +195,9 @@ export default function App() {
               onScoresUpdated={reloadData}
               onSelectTerm={setCurrentTerm}
               onNavigateToSheets={() => setActiveTab('google-sheets')}
+              onNavigateToNotifications={() => setActiveTab('notifications')}
               classroomName={classroomName}
+              user={currentUser || undefined}
             />
           )}
 
@@ -208,6 +230,19 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'pp5-book' && (
+            <Pp5BookPage
+              students={students}
+              subjects={subjects}
+              allScoreItems={allScoreItems}
+              allScores={allScores}
+              terms={terms}
+              classroom={classroomName}
+              activeClassroom={activeClassroom}
+              user={currentUser}
+            />
+          )}
+
           {activeTab === 'individual-report' && (
             <IndividualSummaryPage
               students={students}
@@ -218,6 +253,16 @@ export default function App() {
               user={currentUser}
               classroom={classroomName}
               activeClassroom={activeClassroom}
+            />
+          )}
+
+          {activeTab === 'id-cards' && (
+            <StudentIDCardPage
+              students={students}
+              classroom={classroomName}
+              activeClassroom={activeClassroom}
+              user={currentUser}
+              onViewStudentPortal={(stu) => setPortalStudent(stu)}
             />
           )}
 
@@ -235,6 +280,27 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'notifications' && (
+            <NotificationSettingsPage
+              students={students}
+              subjects={subjects}
+              terms={terms}
+              allScoreItems={allScoreItems}
+              allScores={allScores}
+              classroom={classroomName}
+              activeClassroom={activeClassroom}
+              user={currentUser || {
+                id: 'user-default',
+                username: 'kru.somsri',
+                password_hash: '1234',
+                full_name: 'ครูสมศรี จิตเมตตา',
+                school_name: 'โรงเรียนบ้านป่าส่าน',
+                classroom_responsible: classroomName,
+                role: 'teacher',
+              }}
+            />
+          )}
+
           {activeTab === 'students' && (
             <StudentManagementPage
               students={students}
@@ -244,6 +310,7 @@ export default function App() {
               classrooms={classrooms}
               onNavigateToSheets={() => setActiveTab('google-sheets')}
               onOpenClassroomManager={() => setIsClassroomModalOpen(true)}
+              onNavigateToIdCards={() => setActiveTab('id-cards')}
               onViewStudentPortal={(stu) => {
                 setPortalStudent(stu);
               }}

@@ -10,14 +10,21 @@ import {
   HelpCircle,
   GraduationCap,
   Award,
+  MessageSquare,
+  FileText,
+  CreditCard,
+  Trophy,
 } from 'lucide-react';
 
 export type NavTab =
   | 'score-entry'
   | 'dashboard'
   | 'subject-summary'
+  | 'pp5-book'
   | 'individual-report'
+  | 'id-cards'
   | 'certificates'
+  | 'notifications'
   | 'students'
   | 'subjects'
   | 'google-sheets'
@@ -61,17 +68,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: FileSpreadsheet,
     },
     {
+      id: 'pp5-book' as NavTab,
+      label: 'แบบรายงาน ปพ.5',
+      sublabel: 'สมุดบันทึกผลทั้งห้อง (เล่ม)',
+      icon: FileText,
+      badge: 'ปพ.5',
+    },
+    {
       id: 'individual-report' as NavTab,
-      label: 'รายงานรายบุคคล / ปพ.5',
+      label: 'รายงานรายบุคคล (ปพ.6)',
       sublabel: 'พิมพ์แจกผู้ปกครอง',
       icon: Printer,
     },
     {
+      id: 'id-cards' as NavTab,
+      label: 'บัตรนักเรียน & QR',
+      sublabel: 'สแกนตรวจคะแนนทันที',
+      icon: CreditCard,
+      badge: 'QR Code',
+    },
+    {
       id: 'certificates' as NavTab,
-      label: 'ออกเกียรติบัตร',
-      sublabel: 'ใบประกาศนียบัตรนักเรียน',
-      icon: Award,
-      badge: 'ระบบ 4',
+      label: 'จัดอันดับ & เกียรติบัตร',
+      sublabel: 'Ranking & ใบประกาศ PDF',
+      icon: Trophy,
+      badge: 'ระบบ 3',
+    },
+    {
+      id: 'notifications' as NavTab,
+      label: 'การแจ้งเตือน & LINE',
+      sublabel: 'LINE Notify ผู้ปกครอง',
+      icon: MessageSquare,
+      badge: 'สื่อสาร',
     },
     {
       id: 'students' as NavTab,

@@ -62,6 +62,18 @@
     border: 1px solid #94a3b8 !important;
     border-radius: 0 !important;
   }
+
+  .id-cards-batch-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8mm !important;
+    page-break-inside: auto !important;
+  }
+
+  .id-card-print-item {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
 
 @keyframes pulse-subtle {

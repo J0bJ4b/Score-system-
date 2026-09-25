@@ -133,3 +133,39 @@ export interface CertificateSettings {
   sign_mode: 'digital' | 'line_only';
 }
 
+export interface LineNotifySettings {
+  enabled: boolean;
+  token: string;
+  target_group_name: string; // เช่น กลุ่มผู้ปกครอง ป.5/1
+  school_signature: string; // เช่น โรงเรียนบ้านป่าส่าน
+  notify_on_score_saved: boolean; // แจ้งเตือนเมื่อครูบันทึกคะแนนเสร็จสิ้น
+  notify_on_midterm_final: boolean; // แจ้งเตือนเมื่อครูประกาศคะแนนสอบกลางภาค/ปลายภาคเสร็จสิ้น
+  notify_on_low_score: boolean; // แจ้งเตือนกรณีคะแนนเก็บต่ำกว่าเกณฑ์
+  notify_on_missing_or_absent: boolean; // แจ้งเตือนกรณีมีงานค้างส่ง (ติด "ร" หรือขาดส่งงาน "มส")
+  low_score_threshold_percent: number; // เกณฑ์คะแนนต่ำกว่า % เช่น 50%
+  auto_notify_enabled: boolean; // ส่งอัตโนมัติหรือให้ครูกดอนุมัติ
+}
+
+export type NotificationType =
+  | 'score_saved'
+  | 'midterm_final'
+  | 'low_score_alert'
+  | 'missing_work_alert'
+  | 'custom_broadcast'
+  | 'test_ping';
+
+export interface NotificationLog {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  recipient_group: string;
+  classroom?: string;
+  subject_name?: string;
+  term_name?: string;
+  status: 'success' | 'failed' | 'simulated';
+  timestamp: string;
+  student_count?: number;
+  error_message?: string;
+}
+

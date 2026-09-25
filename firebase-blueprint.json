@@ -142,6 +142,29 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "student_id", "student_name", "type", "title", "academic_year", "ownerId"]
+    },
+    "NotificationLog": {
+      "title": "NotificationLog",
+      "description": "Log records of notifications sent to parents or groups",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["score_saved", "midterm_final", "low_score_alert", "missing_work_alert", "custom_broadcast", "test_ping"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 2000 },
+        "recipient_group": { "type": "string", "maxLength": 150 },
+        "classroom": { "type": "string", "maxLength": 100 },
+        "subject_name": { "type": "string", "maxLength": 150 },
+        "term_name": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["success", "failed", "simulated"] },
+        "timestamp": { "type": "string" },
+        "student_count": { "type": "number" },
+        "error_message": { "type": "string", "maxLength": 500 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "type", "title", "message", "recipient_group", "status", "timestamp", "ownerId"]
     }
   },
   "firestore": {
@@ -176,6 +199,10 @@
     "/certificates/{certificateId}": {
       "schema": "Certificate",
       "description": "Certificates and awards issued to students"
+    },
+    "/notification_logs/{logId}": {
+      "schema": "NotificationLog",
+      "description": "Logs of parent messages and LINE notifications"
     }
   }
 }

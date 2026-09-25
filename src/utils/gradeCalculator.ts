@@ -141,6 +141,134 @@ export function getStudentFullReport(
   };
 }
 
+export interface ClassroomRankingItem extends StudentFullReport {
+  rank: number;
+  totalRawScore: number;
+  maxPossibleRawScore: number;
+  honorTitle?: string;
+  medal?: 'gold' | 'silver' | 'bronze' | null;
+}
+
+/**
+ * คำนวณอันดับที่ (Ranking) และรายงานผลการเรียนของนักเรียนทุกคนในห้อง
+ */
+export function getClassroomRankings(
+  students: Student[],
+  subjects: Subject[],
+  allScoreItems: ScoreItem[],
+  allScores: Score[],
+  terms: Term[]
+): ClassroomRankingItem[] {
+  const reports = students.map((stu) => {
+    const report = getStudentFullReport(stu, subjects, allScoreItems, allScores, terms);
+    const totalRawScore = report.subjects.reduce((sum, s) => sum + s.total_score, 0);
+    const maxPossibleRawScore = subjects.length * 100;
+    return {
+      ...report,
+      rank: 1,
+      totalRawScore: Math.round(totalRawScore * 10) / 10,
+      maxPossibleRawScore,
+    };
+  });
+
+  // Sort by GPA desc, then by totalRawScore desc, then by student_no asc
+  reports.sort((a, b) => {
+    if (b.gpa !== a.gpa) return b.gpa - a.gpa;
+    if (b.totalRawScore !== a.totalRawScore) return b.totalRawScore - a.totalRawScore;
+    return a.student.student_no - b.student.student_no;
+  });
+
+  // Assign dense / standard ranks
+  let currentRank = 1;
+  const rankedReports: ClassroomRankingItem[] = reports.map((item, idx) => {
+    if (idx > 0) {
+      const prev = reports[idx - 1];
+      if (item.gpa === prev.gpa && item.totalRawScore === prev.totalRawScore) {
+        // Same rank as previous
+      } else {
+        currentRank = idx + 1;
+      }
+    } else {
+      currentRank = 1;
+    }
+
+    let medal: 'gold' | 'silver' | 'bronze' | null = null;
+    if (currentRank === 1) medal = 'gold';
+    else if (currentRank === 2) medal = 'silver';
+    else if (currentRank === 3) medal = 'bronze';
+
+    let honorTitle: string | undefined = undefined;
+    if (item.gpa >= 3.8) honorTitle = 'เกียรตินิยมอันดับ 1 (ดีเยี่ยมยอด)';
+    else if (item.gpa >= 3.5) honorTitle = 'เกียรตินิยมอันดับ 2 (ดีเด่น)';
+    else if (item.gpa >= 3.0) honorTitle = 'ผลการเรียนดี (Good)';
+
+    return {
+      ...item,
+      rank: currentRank,
+      medal,
+      honorTitle,
+    };
+  });
+
+  return rankedReports;
+}
+
+/**
+ * คำนวณสถิติการกระจายเกรด (Grade Distribution Statistics)
+ */
+export function calculateSubjectGradeStats(
+  students: Student[],
+  subject: Subject,
+  allScoreItems: ScoreItem[],
+  allScores: Score[],
+  terms: Term[]
+) {
+  const countByGrade: Record<string, number> = {
+    '4': 0,
+    '3.5': 0,
+    '3': 0,
+    '2.5': 0,
+    '2': 0,
+    '1.5': 0,
+    '1': 0,
+    '0': 0,
+    'ร': 0,
+    'มส': 0,
+  };
+
+  let totalScoreSum = 0;
+  const totalStudents = students.length;
+
+  students.forEach((stu) => {
+    const summary = getSubjectSummaryForStudent(stu.id, subject.id, allScoreItems, allScores, terms);
+    totalScoreSum += summary.total_score;
+    if (summary.status_flag === 'ร') {
+      countByGrade['ร'] = (countByGrade['ร'] || 0) + 1;
+    } else if (summary.status_flag === 'มส') {
+      countByGrade['มส'] = (countByGrade['มส'] || 0) + 1;
+    } else if (countByGrade[summary.grade] !== undefined) {
+      countByGrade[summary.grade]++;
+    } else {
+      countByGrade['0']++;
+    }
+  });
+
+  const avgScore = totalStudents > 0 ? Math.round((totalScoreSum / totalStudents) * 10) / 10 : 0;
+  const passedStudents = totalStudents - (countByGrade['0'] + countByGrade['ร'] + countByGrade['มส']);
+  const passPercentage = totalStudents > 0 ? Math.round((passedStudents / totalStudents) * 100) : 0;
+  const goodGradeStudents = (countByGrade['4'] || 0) + (countByGrade['3.5'] || 0) + (countByGrade['3'] || 0);
+  const goodGradePercentage = totalStudents > 0 ? Math.round((goodGradeStudents / totalStudents) * 100) : 0;
+
+  return {
+    subject,
+    totalStudents,
+    avgScore,
+    countByGrade,
+    passPercentage,
+    goodGradePercentage,
+  };
+}
+
 /**
  * ส่งออกไฟล์ CSV ด้วย UTF-8 BOM เพื่อให้ Excel ภาษาไทยเปิดได้ถูกต้อง 100%
  */

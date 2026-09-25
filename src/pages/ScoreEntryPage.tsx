@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Subject,
   Term,
@@ -6,9 +6,12 @@ import {
   Student,
   Score,
   ScoreStatus,
+  User,
 } from '../types';
 import { storage } from '../services/storage';
+import { lineNotifyService } from '../services/lineNotify';
 import { getStudentTermScore } from '../utils/gradeCalculator';
+import { ScoreCsvImportExportModal } from '../components/ScoreCsvImportExportModal';
 import {
   Save,
   CheckCircle2,
@@ -21,6 +24,16 @@ import {
   Table,
   Layers,
   X,
+  Send,
+  MessageSquare,
+  Share2,
+  Copy,
+  ExternalLink,
+  Settings,
+  Bell,
+  FileSpreadsheet,
+  Download,
+  Upload,
 } from 'lucide-react';
 
 interface ScoreEntryPageProps {
@@ -33,7 +46,9 @@ interface ScoreEntryPageProps {
   onScoresUpdated: () => void;
   onSelectTerm: (term: Term) => void;
   onNavigateToSheets?: () => void;
+  onNavigateToNotifications?: () => void;
   classroomName?: string;
+  user?: User;
 }
 
 export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
@@ -46,7 +61,9 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   onScoresUpdated,
   onSelectTerm,
   onNavigateToSheets,
+  onNavigateToNotifications,
   classroomName,
+  user,
 }) => {
   // Selected state
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
@@ -59,6 +76,17 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   const [showSavedToast, setShowSavedToast] = useState(false);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [viewMode, setViewMode] = useState<'single' | 'all'>('single');
+
+  // LINE Notification Modal state
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [notifyMode, setNotifyMode] = useState<'score_saved' | 'midterm_final' | 'at_risk'>('score_saved');
+  const [isSendingNotify, setIsSendingNotify] = useState(false);
+  const [notifyFeedback, setNotifyFeedback] = useState<{ success: boolean; message: string; simulated?: boolean } | null>(null);
+  const [copiedNotifyText, setCopiedNotifyText] = useState(false);
+
+  // CSV Import/Export Modal state
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [csvModalTab, setCsvModalTab] = useState<'export' | 'import'>('export');
 
   // Trigger floating saved toast
   const triggerSavedToast = () => {
@@ -119,6 +147,156 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   }, [selectedSubjectId, currentTerm.id, students.length, allScores]);
 
   const activeItem = currentSubjectItems.find((i) => i.id === selectedItemId);
+
+  // Active subject
+  const activeSubject = subjects.find((s) => s.id === selectedSubjectId) || subjects[0];
+
+  // LINE Notify Stats and Message generation
+  const notifyStats = useMemo(() => {
+    if (!activeSubject) return null;
+    const items = allScoreItems.filter(
+      (i) => i.subject_id === activeSubject.id && i.term_id === currentTerm.id
+    );
+
+    let recorded = 0;
+    let sumScore = 0;
+    const scoreArr: number[] = [];
+    const atRisk: Array<{ studentNo: number; studentName: string; reason: string }> = [];
+
+    students.forEach((stu) => {
+      let stuTotal = 0;
+      let hasAbsent = false;
+      let hasMissing = false;
+      let hasScore = false;
+
+      items.forEach((it) => {
+        const d = draftScores[`${stu.id}_${it.id}`];
+        if (d) {
+          if (d.status === 'absent') hasAbsent = true;
+          if (d.status === 'missing') hasMissing = true;
+          if (typeof d.score === 'number') {
+            stuTotal += d.score;
+            hasScore = true;
+          }
+        }
+      });
+
+      if (hasScore || hasAbsent || hasMissing) {
+        recorded++;
+        sumScore += stuTotal;
+        scoreArr.push(stuTotal);
+      }
+
+      if (hasAbsent) {
+        atRisk.push({
+          studentNo: stu.student_no,
+          studentName: stu.name,
+          reason: 'ติด ร (ขาดสอบเก็บคะแนน)',
+        });
+      } else if (hasMissing) {
+        atRisk.push({
+          studentNo: stu.student_no,
+          studentName: stu.name,
+          reason: 'ติด มส (ค้างส่งงาน/ชิ้นงาน)',
+        });
+      } else if (stuTotal < 25 && hasScore) {
+        atRisk.push({
+          studentNo: stu.student_no,
+          studentName: stu.name,
+          reason: `คะแนนรวมต่ำกว่าเกณฑ์ (${stuTotal}/50 คะแนน)`,
+        });
+      }
+    });
+
+    return {
+      recordedCount: recorded,
+      totalStudents: students.length,
+      average: scoreArr.length > 0 ? sumScore / scoreArr.length : 0,
+      maxScore: scoreArr.length > 0 ? Math.max(...scoreArr) : 0,
+      minScore: scoreArr.length > 0 ? Math.min(...scoreArr) : 0,
+      atRisk,
+    };
+  }, [activeSubject, currentTerm.id, allScoreItems, draftScores, students]);
+
+  // Computed modal message
+  const modalMessage = useMemo(() => {
+    if (!activeSubject) return '';
+    const schoolName = user?.school_name || 'โรงเรียนบ้านป่าส่าน';
+    const teacherName = user?.full_name || 'ครูสมศรี จิตเมตตา';
+    const classRoomStr = classroomName || 'ป.5/1';
+
+    if (notifyMode === 'score_saved') {
+      return lineNotifyService.buildScoreSavedMessage({
+        classroomName: classRoomStr,
+        subject: activeSubject,
+        term: currentTerm,
+        scoreItem: activeItem,
+        totalStudents: students.length,
+        recordedCount: notifyStats?.recordedCount || students.length,
+        teacherName,
+        schoolName,
+      });
+    }
+
+    if (notifyMode === 'midterm_final') {
+      return lineNotifyService.buildExamAnnouncementMessage({
+        classroomName: classRoomStr,
+        subject: activeSubject,
+        term: currentTerm,
+        examType: 'midterm',
+        averageScore: notifyStats?.average || 0,
+        maxScoreObtained: notifyStats?.maxScore || 0,
+        minScoreObtained: notifyStats?.minScore || 0,
+        fullScore: 50,
+        totalStudents: notifyStats?.recordedCount || students.length,
+        teacherName,
+        schoolName,
+      });
+    }
+
+    // At risk mode
+    const risks = notifyStats?.atRisk && notifyStats.atRisk.length > 0
+      ? notifyStats.atRisk
+      : [{ studentNo: 1, studentName: 'นักเรียนทุกคนส่งงานครบถ้วน', reason: 'ไม่มีงานค้างส่ง' }];
+
+    return lineNotifyService.buildLowScoreAndMissingAlertMessage({
+      classroomName: classRoomStr,
+      subject: activeSubject,
+      term: currentTerm,
+      studentsAtRisk: risks,
+      teacherName,
+      schoolName,
+    });
+  }, [activeSubject, currentTerm, activeItem, classroomName, user, notifyMode, notifyStats, students.length]);
+
+  // Handle Send LINE Notification
+  const handleSendNotification = async () => {
+    setIsSendingNotify(true);
+    setNotifyFeedback(null);
+
+    const title =
+      notifyMode === 'score_saved'
+        ? `บันทึกคะแนนวิชา${activeSubject.name}`
+        : notifyMode === 'midterm_final'
+        ? `ประกาศผลสอบกลาง/ปลายภาควิชา${activeSubject.name}`
+        : `แจ้งเตือนติดตามงานค้างส่งวิชา${activeSubject.name}`;
+
+    const res = await lineNotifyService.sendMessage(modalMessage, {
+      type: notifyMode === 'at_risk' ? 'low_score_alert' : notifyMode,
+      title,
+      classroom: classroomName || 'ป.5/1',
+      subjectName: activeSubject.name,
+      termName: currentTerm.name,
+      studentCount: students.length,
+    });
+
+    setIsSendingNotify(false);
+    setNotifyFeedback({
+      success: res.success,
+      message: res.message,
+      simulated: res.simulated,
+    });
+  };
 
   // Debounced auto-save effect
   useEffect(() => {
@@ -312,6 +490,12 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     };
   };
 
+  const handleCopyModalText = () => {
+    navigator.clipboard.writeText(modalMessage);
+    setCopiedNotifyText(true);
+    setTimeout(() => setCopiedNotifyText(false), 2000);
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6 relative">
       {/* Subtle Floating 'Saved' Toast Notification in the Top Right Corner */}
@@ -393,6 +577,19 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
               )}
             </div>
 
+            <button
+              type="button"
+              onClick={() => {
+                setCsvModalTab('export');
+                setShowCsvModal(true);
+              }}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-semibold text-xs sm:text-sm shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
+              title="นำเข้าหรือส่งออกคะแนนเป็นไฟล์ Excel / CSV"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>นำเข้า/ส่งออก CSV</span>
+            </button>
+
             {onNavigateToSheets && (
               <button
                 type="button"
@@ -404,6 +601,19 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                 <span>Google Sheets</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setNotifyFeedback(null);
+                setShowNotifyModal(true);
+              }}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              title="ส่งการแจ้งเตือนไปยังผู้ปกครองผ่าน LINE Notify"
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-200" />
+              <span>แจ้งเตือน LINE</span>
+            </button>
 
             <button
               onClick={handleManualSave}
@@ -910,10 +1120,242 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
             เคล็ดลับ: ใช้ปุ่ม <strong>Tab</strong> เพื่อเลื่อนช่อง หรือปุ่ม <strong>Enter</strong> เพื่อลงมายังนักเรียนคนถัดไปได้ทันที
           </span>
         </div>
-        <div className="font-semibold text-indigo-700">
-          เมื่อพิมพ์คะแนน ระบบจะคำนวณคะแนนรวมเทอม (50) และตัดเกรดให้โดยอัตโนมัติ
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setNotifyFeedback(null);
+              setShowNotifyModal(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>ส่งแจ้งเตือนผลการเรียนทาง LINE</span>
+          </button>
+          <span className="font-semibold text-indigo-700 hidden md:inline">
+            ระบบคำนวณคะแนนรวมเทอม (50) และตัดเกรดให้อัตโนมัติ
+          </span>
         </div>
       </div>
+
+      {/* LINE Notify Dialog Modal */}
+      {showNotifyModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-7 shadow-2xl space-y-4 my-8 border border-slate-200">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0 shadow-inner">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base sm:text-lg flex items-center gap-2">
+                    <span>ส่งแจ้งเตือนผ่าน LINE Notify</span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                      ห้อง {classroomName || 'ป.5/1'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    วิชา{activeSubject.name} ({activeSubject.code}) • {currentTerm.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNotifyModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Notification Mode Tabs */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                เลือกรูปแบบข้อความแจ้งเตือน:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNotifyMode('score_saved')}
+                  className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                    notifyMode === 'score_saved'
+                      ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-200 text-emerald-900 font-bold'
+                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <div className="text-xs">📝 บันทึกคะแนนเสร็จ</div>
+                  <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                    แจ้งว่าครูลงคะแนนครบแล้ว
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNotifyMode('midterm_final')}
+                  className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                    notifyMode === 'midterm_final'
+                      ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-200 text-emerald-900 font-bold'
+                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <div className="text-xs">🎯 ประกาศผลคะแนนสอบ</div>
+                  <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                    รายงานสถิติ สูงสุด-เฉลี่ย
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNotifyMode('at_risk')}
+                  className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                    notifyMode === 'at_risk'
+                      ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-200 text-amber-900 font-bold'
+                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <div className="text-xs">⚠️ ติดตามงาน/ติด ร-มส</div>
+                  <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                    เตือนนักเรียนที่ต้องส่งงาน
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Stats Pill */}
+            {notifyStats && (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-3 gap-2 text-center text-xs">
+                <div>
+                  <div className="text-[10px] text-slate-500">บันทึกแล้ว</div>
+                  <div className="font-bold text-slate-800">
+                    {notifyStats.recordedCount} / {notifyStats.totalStudents} คน
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500">คะแนนเฉลี่ย</div>
+                  <div className="font-bold text-indigo-700">
+                    {notifyStats.average.toFixed(1)} / 50
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500">ต้องติดตาม</div>
+                  <div className="font-bold text-amber-600">
+                    {notifyStats.atRisk.length} คน
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Live Message Preview Screen */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                <span>ตัวอย่างข้อความที่จะส่งไปยัง LINE:</span>
+                <span className="text-[10px] text-slate-400 font-normal">
+                  ความยาว {modalMessage.length} ตัวอักษร
+                </span>
+              </div>
+              <div className="bg-slate-900 text-slate-200 p-3.5 sm:p-4 rounded-2xl font-sans text-xs whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto border border-slate-800 shadow-inner">
+                {modalMessage}
+              </div>
+            </div>
+
+            {/* Feedback notification banner */}
+            {notifyFeedback && (
+              <div
+                className={`p-3 rounded-xl text-xs flex items-start gap-2.5 border ${
+                  notifyFeedback.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}
+              >
+                {notifyFeedback.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <div className="font-bold">
+                    {notifyFeedback.success ? 'ส่งข้อความสำเร็จ!' : 'ไม่สามารถส่งข้อความได้'}
+                  </div>
+                  <div className="text-[11px] mt-0.5">{notifyFeedback.message}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleCopyModalText}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer w-full sm:w-auto"
+                >
+                  {copiedNotifyText ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedNotifyText ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}</span>
+                </button>
+
+                <a
+                  href={lineNotifyService.getLineShareUrl(modalMessage)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-2 bg-[#06C755]/10 hover:bg-[#06C755]/20 text-[#05963F] border border-[#06C755]/30 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors w-full sm:w-auto"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>แชร์ลง LINE</span>
+                </a>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {onNavigateToNotifications && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNotifyModal(false);
+                      onNavigateToNotifications();
+                    }}
+                    className="px-3 py-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>ตั้งค่า Token</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSendNotification}
+                  disabled={isSendingNotify}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 w-full sm:w-auto"
+                >
+                  {isSendingNotify ? (
+                    <RotateCcw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  <span>{isSendingNotify ? 'กำลังส่ง...' : 'ส่ง LINE Notify ทันที'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Score CSV Import/Export Modal */}
+      <ScoreCsvImportExportModal
+        isOpen={showCsvModal}
+        onClose={() => setShowCsvModal(false)}
+        subjects={subjects}
+        terms={terms}
+        students={students}
+        allScoreItems={allScoreItems}
+        allScores={allScores}
+        currentSubject={activeSubject}
+        currentTerm={currentTerm}
+        classroomName={classroomName}
+        defaultTab={csvModalTab}
+        onScoresImported={() => {
+          onScoresUpdated();
+        }}
+      />
     </div>
   );
 };
