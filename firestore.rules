@@ -1,0 +1,193 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 't.suphawat.mua@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity Validators
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email', 'role']) &&
+             data.keys().hasOnly(['id', 'email', 'displayName', 'role', 'school_name', 'classroom_responsible', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.role in ['teacher', 'admin'] &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 150)) &&
+             (!('school_name' in data) || (data.school_name is string && data.school_name.size() <= 200)) &&
+             (!('classroom_responsible' in data) || (data.classroom_responsible is string && data.classroom_responsible.size() <= 100));
+    }
+
+    function isValidClassroom(data) {
+      return data.keys().hasAll(['id', 'name', 'ownerId']) &&
+             data.keys().hasOnly(['id', 'name', 'level', 'academic_year', 'homeroom_teacher', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.ownerId is string && data.ownerId.size() <= 128 &&
+             (!('level' in data) || (data.level is string && data.level.size() <= 100)) &&
+             (!('academic_year' in data) || (data.academic_year is string && data.academic_year.size() <= 20)) &&
+             (!('homeroom_teacher' in data) || (data.homeroom_teacher is string && data.homeroom_teacher.size() <= 150));
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['id', 'student_no', 'name', 'student_code', 'ownerId']) &&
+             data.keys().hasOnly(['id', 'student_no', 'name', 'student_code', 'classroom_id', 'classroom', 'gender', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.student_no is number && data.student_no >= 1 && data.student_no <= 200 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+             data.student_code is string && data.student_code.size() > 0 && data.student_code.size() <= 30 &&
+             data.ownerId is string && data.ownerId.size() <= 128 &&
+             (!('gender' in data) || data.gender in ['ชาย', 'หญิง']) &&
+             (!('classroom_id' in data) || (data.classroom_id is string && data.classroom_id.size() <= 128)) &&
+             (!('classroom' in data) || (data.classroom is string && data.classroom.size() <= 100));
+    }
+
+    function isValidSubject(data) {
+      return data.keys().hasAll(['id', 'name', 'code', 'credit', 'ownerId']) &&
+             data.keys().hasOnly(['id', 'name', 'code', 'credit', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+             data.code is string && data.code.size() > 0 && data.code.size() <= 30 &&
+             data.credit is number && data.credit >= 0 && data.credit <= 20 &&
+             data.ownerId is string && data.ownerId.size() <= 128;
+    }
+
+    function isValidTerm(data) {
+      return data.keys().hasAll(['id', 'name', 'academic_year', 'max_score', 'ownerId']) &&
+             data.keys().hasOnly(['id', 'name', 'academic_year', 'max_score', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.academic_year is string && data.academic_year.size() <= 20 &&
+             data.max_score is number && data.max_score >= 1 && data.max_score <= 200 &&
+             data.ownerId is string && data.ownerId.size() <= 128;
+    }
+
+    function isValidScoreItem(data) {
+      return data.keys().hasAll(['id', 'subject_id', 'term_id', 'name', 'max_score', 'ownerId']) &&
+             data.keys().hasOnly(['id', 'subject_id', 'term_id', 'name', 'max_score', 'category', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.subject_id is string && data.subject_id.size() <= 128 &&
+             data.term_id is string && data.term_id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+             data.max_score is number && data.max_score >= 0 && data.max_score <= 200 &&
+             data.ownerId is string && data.ownerId.size() <= 128 &&
+             (!('category' in data) || data.category in ['regular', 'midterm', 'final']);
+    }
+
+    function isValidScore(data) {
+      return data.keys().hasAll(['id', 'student_id', 'score_item_id', 'status', 'ownerId']) &&
+             data.keys().hasOnly(['id', 'student_id', 'score_item_id', 'score', 'status', 'note', 'ownerId', 'updated_at', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.student_id is string && data.student_id.size() <= 128 &&
+             data.score_item_id is string && data.score_item_id.size() <= 128 &&
+             data.status in ['normal', 'absent', 'missing'] &&
+             data.ownerId is string && data.ownerId.size() <= 128 &&
+             (!('score' in data) || data.score == null || (data.score is number && data.score >= 0 && data.score <= 200)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 250));
+    }
+
+    // Test connection doc
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Admins collection
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser() && request.auth.uid == userId && isValidUser(incoming());
+      allow update: if isVerifiedUser() && (request.auth.uid == userId || isAdmin()) && isValidUser(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'school_name', 'classroom_responsible', 'updatedAt']);
+      allow delete: if isAdmin();
+    }
+
+    // Classrooms collection
+    match /classrooms/{classroomId} {
+      allow read: if true;
+      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(classroomId) && isValidClassroom(incoming());
+      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(classroomId) && isValidClassroom(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'level', 'academic_year', 'homeroom_teacher', 'updatedAt']);
+      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(classroomId);
+    }
+
+    // Students collection
+    match /students/{studentId} {
+      allow read: if true;
+      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(studentId) && isValidStudent(incoming());
+      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(studentId) && isValidStudent(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['student_no', 'name', 'student_code', 'classroom_id', 'classroom', 'gender', 'updatedAt']);
+      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(studentId);
+    }
+
+    // Subjects collection
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(subjectId) && isValidSubject(incoming());
+      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(subjectId) && isValidSubject(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'code', 'credit', 'updatedAt']);
+      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(subjectId);
+    }
+
+    // Terms collection
+    match /terms/{termId} {
+      allow read: if true;
+      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(termId) && isValidTerm(incoming());
+      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(termId) && isValidTerm(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'academic_year', 'max_score', 'updatedAt']);
+      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(termId);
+    }
+
+    // Score items collection
+    match /score_items/{scoreItemId} {
+      allow read: if true;
+      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(scoreItemId) && isValidScoreItem(incoming());
+      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreItemId) && isValidScoreItem(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'max_score', 'category', 'updatedAt']);
+      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreItemId);
+    }
+
+    // Scores collection
+    match /scores/{scoreId} {
+      allow read: if true;
+      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(scoreId) && isValidScore(incoming());
+      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreId) && isValidScore(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['score', 'status', 'note', 'updated_at', 'updatedAt']);
+      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreId);
+    }
+  }
+}

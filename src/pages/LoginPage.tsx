@@ -12,10 +12,10 @@ import {
   ShieldCheck,
   BookOpen,
   Award,
-  ChevronRight,
 } from 'lucide-react';
 import { storage } from '../services/storage';
 import { User, Student } from '../types';
+import { signInWithGmail } from '../services/firebase';
 
 interface LoginPageProps {
   onLoginSuccess: (user: User) => void;
@@ -26,6 +26,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   onLoginSuccess,
   onStudentLogin,
 }) => {
+  // Google / Gmail Auth State
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState('');
+
   // Teacher Form State
   const [username, setUsername] = useState('kru.somsri');
   const [password, setPassword] = useState('1234');
@@ -35,6 +39,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   // Student Search State (No login required)
   const [studentCode, setStudentCode] = useState('');
   const [studentError, setStudentError] = useState('');
+
+  // Real Gmail (Firebase Google Auth) Login
+  const handleGoogleSignIn = async () => {
+    setGoogleError('');
+    setGoogleLoading(true);
+    try {
+      const appUser = await signInWithGmail();
+      storage.setCurrentUser(appUser);
+      onLoginSuccess(appUser);
+    } catch (err: any) {
+      console.error('Google Sign In Error:', err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setGoogleError('หน้าต่างการเข้าสู่ระบบ Google ถูกปิดก่อนทำรายการเสร็จสิ้น');
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        setGoogleError('มีการเรียกเปิดหน้าต่างซ้ำ กรุณาลองใหม่อีกครั้ง');
+      } else if (err.code === 'auth/network-request-failed') {
+        setGoogleError('ไม่สามารถเชื่อมต่อเครือข่ายได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+      } else {
+        setGoogleError(err.message || 'ไม่สามารถเข้าสู่ระบบด้วย Gmail ได้ กรุณาลองใหม่อีกครั้ง');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleTeacherSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -283,7 +311,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </div>
                 <div>
                   <span className="text-[11px] font-bold tracking-wider uppercase text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded-full border border-indigo-800">
-                    สำหรับบุคลากร
+                    สำหรับบุคลากรครู
                   </span>
                   <h2 className="text-lg sm:text-xl font-bold mt-0.5">
                     เข้าสู่ระบบครูประจำชั้น
@@ -291,15 +319,83 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </div>
               </div>
               <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                เข้าใช้งานเพื่อกรอกคะแนนสะสม จัดการนักเรียน คำนวณเกรด และออกรายงานผล
+                เข้าใช้งานเพื่อบันทึกคะแนน จัดการรายชื่อนักเรียน ตัดเกรด และออกรายงาน
               </p>
             </div>
 
-            {/* Teacher Form */}
+            {/* Login Options Container */}
             <div className="p-6 sm:p-7 flex-1 flex flex-col justify-between space-y-4">
-              <form onSubmit={handleTeacherSubmit} className="space-y-4">
+              
+              {/* PRIMARY: Real Gmail / Google Sign-In */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span>เข้าสู่ระบบจริงด้วย Gmail</span>
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Firebase Auth
+                  </span>
+                </div>
+
+                {googleError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{googleError}</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={googleLoading}
+                  className="w-full py-3.5 px-4 bg-white hover:bg-slate-50 text-slate-800 font-bold rounded-2xl border-2 border-slate-300 hover:border-indigo-400 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-70 group active:scale-[0.99]"
+                >
+                  {/* Google 'G' Logo SVG */}
+                  {googleLoading ? (
+                    <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                  )}
+                  <span className="text-sm">
+                    {googleLoading ? 'กำลังเปิดหน้าต่าง Google...' : 'เข้าสู่ระบบด้วย Gmail (Google Account)'}
+                  </span>
+                </button>
+
+                <p className="text-[11px] text-slate-500 text-center">
+                  รองรับบัญชี Google ส่วนบุคคลและ Google Workspace สำหรับโรงเรียน
+                </p>
+              </div>
+
+              {/* Divider */}
+              <div className="relative my-2 flex items-center justify-center">
+                <div className="border-t border-slate-200 w-full" />
+                <span className="bg-white px-3 text-[11px] text-slate-400 font-semibold shrink-0 uppercase tracking-wider">
+                  หรือ เข้าสู่ระบบด้วยบัญชีโรงเรียน
+                </span>
+              </div>
+
+              {/* SECONDARY: Username / Password form */}
+              <form onSubmit={handleTeacherSubmit} className="space-y-3">
                 {error && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{error}</span>
                   </div>
@@ -319,7 +415,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder="เช่น kru.somsri"
                       required
-                      className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-slate-800"
+                      className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-slate-800"
                     />
                   </div>
                 </div>
@@ -329,7 +425,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <label className="block text-xs font-bold text-slate-700">
                       รหัสผ่าน (Password)
                     </label>
-                    <span className="text-[11px] text-slate-400">รหัสผ่าน: 1234</span>
+                    <span className="text-[10px] text-slate-400">รหัสผ่าน: 1234</span>
                   </div>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -341,16 +437,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="รหัสผ่าน"
                       required
-                      className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-slate-800"
+                      className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-slate-800"
                     />
                   </div>
                 </div>
 
-                <div className="pt-2 space-y-2">
+                <div className="pt-1 space-y-2">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-all text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75"
+                    className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75"
                   >
                     {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบครูประจำชั้น'}
                   </button>
@@ -358,20 +454,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <button
                     type="button"
                     onClick={handleQuickDemoTeacher}
-                    className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-slate-200"
+                    className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-[11px] sm:text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200"
                   >
-                    <span>🚀 เข้าสู่ระบบทันที (บัญชีครูสมศรี ป.5/1 & ป.6/1)</span>
+                    <span>🚀 เข้าสู่ระบบทันที (บัญชีจำลองครูสมศรี ป.5/1 & ป.6/1)</span>
                   </button>
                 </div>
               </form>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 text-[11px] space-y-1">
+              {/* Capabilities badge */}
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 text-[11px] space-y-1">
                 <div className="font-bold text-slate-700 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                   <span>สิทธิ์การใช้งานของครู:</span>
                 </div>
-                <p className="text-slate-500">
-                  สลับห้องเรียน ป.5/1 - ป.6/1, กรอกคะแนน, Export Excel, เชื่อมต่อ Google Sheets
+                <p className="text-slate-500 text-[10px] leading-relaxed">
+                  บันทึกคะแนนสะสม, สลับห้องเรียน ป.5/1 - ป.6/1, Export รายงาน ปพ., และเชื่อมต่อ Google Sheets
                 </p>
               </div>
             </div>
@@ -387,7 +484,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <span>ระบบประมวลผลคะแนนและตัดเกรดมาตรฐานกระทรวงศึกษาธิการ</span>
         </div>
         <div className="flex items-center gap-4 text-slate-400">
-          <span>อัปเดตข้อมูล Real-time</span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+            <span>เชื่อมต่อ Firebase Real-time</span>
+          </span>
           <span>•</span>
           <span>รองรับ 2 ภาคเรียน (เทอม 1-2)</span>
         </div>

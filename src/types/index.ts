@@ -58,9 +58,12 @@ export interface User {
   username: string;
   password_hash: string;
   full_name: string; // ชื่อ-สกุลครู
+  email?: string;
+  photo_url?: string;
   school_name?: string; // โรงเรียน
   classroom_responsible?: string; // ชั้นที่ประจำ
   role?: 'teacher' | 'admin';
+  provider?: 'google' | 'password' | 'demo';
 }
 
 export interface SubjectTermSummary {

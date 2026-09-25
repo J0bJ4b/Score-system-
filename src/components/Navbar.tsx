@@ -134,13 +134,31 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Teacher Profile */}
             <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-              <div className="hidden xl:flex flex-col text-right">
-                <span className="text-xs sm:text-sm font-bold text-slate-800">{user.full_name}</span>
-                <span className="text-[11px] text-slate-500">ครูประจำชั้น</span>
+              <div className="hidden lg:flex flex-col text-right max-w-[180px]">
+                <div className="flex items-center justify-end gap-1.5">
+                  <span className="text-xs sm:text-sm font-bold text-slate-800 truncate">{user.full_name}</span>
+                  {user.provider === 'google' && (
+                    <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.2 rounded bg-red-50 text-red-600 border border-red-200" title="เข้าสู่ระบบด้วย Gmail">
+                      Gmail
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-slate-500 truncate">
+                  {user.email || 'ครูประจำชั้น'}
+                </span>
               </div>
-              <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
-                <UserCircle className="w-6 h-6" />
-              </div>
+              {user.photo_url ? (
+                <img
+                  src={user.photo_url}
+                  alt={user.full_name}
+                  className="w-9 h-9 rounded-full object-cover border-2 border-indigo-200 shadow-2xs"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shadow-2xs">
+                  <UserCircle className="w-6 h-6" />
+                </div>
+              )}
               <button
                 onClick={onLogout}
                 title="ออกจากระบบ"

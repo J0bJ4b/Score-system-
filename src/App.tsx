@@ -10,6 +10,7 @@ import { Navbar } from './components/Navbar';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { ClassroomManagerModal } from './components/ClassroomManagerModal';
 import { LoginPage } from './pages/LoginPage';
+import { signOutFromFirebase } from './services/firebase';
 import { ScoreEntryPage } from './pages/ScoreEntryPage';
 import { StudentManagementPage } from './pages/StudentManagementPage';
 import { SubjectManagementPage } from './pages/SubjectManagementPage';
@@ -80,7 +81,14 @@ export default function App() {
     reloadData();
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (currentUser?.provider === 'google') {
+      try {
+        await signOutFromFirebase();
+      } catch (err) {
+        console.warn('Firebase signout:', err);
+      }
+    }
     storage.logout();
     setCurrentUser(null);
   };

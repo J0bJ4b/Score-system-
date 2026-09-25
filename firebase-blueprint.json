@@ -1,0 +1,149 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Teacher or administrator user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["teacher", "admin"] },
+        "school_name": { "type": "string", "maxLength": 200 },
+        "classroom_responsible": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "Classroom": {
+      "title": "Classroom",
+      "description": "Classroom managed by teachers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "level": { "type": "string", "maxLength": 100 },
+        "academic_year": { "type": "string", "maxLength": 20 },
+        "homeroom_teacher": { "type": "string", "maxLength": 150 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "ownerId"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student record with student ID and room assignment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "student_no": { "type": "number" },
+        "name": { "type": "string", "maxLength": 150 },
+        "student_code": { "type": "string", "maxLength": 30 },
+        "classroom_id": { "type": "string", "maxLength": 128 },
+        "classroom": { "type": "string", "maxLength": 100 },
+        "gender": { "type": "string", "enum": ["ชาย", "หญิง"] },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "student_no", "name", "student_code", "ownerId"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "School course curriculum subject",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 150 },
+        "code": { "type": "string", "maxLength": 30 },
+        "credit": { "type": "number" },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "code", "credit", "ownerId"]
+    },
+    "Term": {
+      "title": "Term",
+      "description": "Academic semester term definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "academic_year": { "type": "string", "maxLength": 20 },
+        "max_score": { "type": "number" },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "academic_year", "max_score", "ownerId"]
+    },
+    "ScoreItem": {
+      "title": "ScoreItem",
+      "description": "Individual assignment, midterm or final examination item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "subject_id": { "type": "string", "maxLength": 128 },
+        "term_id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 150 },
+        "max_score": { "type": "number" },
+        "category": { "type": "string", "enum": ["regular", "midterm", "final"] },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "subject_id", "term_id", "name", "max_score", "ownerId"]
+    },
+    "Score": {
+      "title": "Score",
+      "description": "Score record for student assignment or exam",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "student_id": { "type": "string", "maxLength": 128 },
+        "score_item_id": { "type": "string", "maxLength": 128 },
+        "score": { "type": "number" },
+        "status": { "type": "string", "enum": ["normal", "absent", "missing"] },
+        "note": { "type": "string", "maxLength": 250 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "updated_at": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "student_id", "score_item_id", "status", "ownerId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profile and preferences for logged in teachers"
+    },
+    "/classrooms/{classroomId}": {
+      "schema": "Classroom",
+      "description": "Classrooms created and managed by teachers"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Student roster with student numbers and identification codes"
+    },
+    "/subjects/{subjectId}": {
+      "schema": "Subject",
+      "description": "Curriculum subjects"
+    },
+    "/terms/{termId}": {
+      "schema": "Term",
+      "description": "Academic terms"
+    },
+    "/score_items/{scoreItemId}": {
+      "schema": "ScoreItem",
+      "description": "Evaluation items and exams"
+    },
+    "/scores/{scoreId}": {
+      "schema": "Score",
+      "description": "Student score records"
+    }
+  }
+}
