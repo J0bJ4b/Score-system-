@@ -14,6 +14,7 @@ import {
   AlertCircle,
   X,
   Layers,
+  GraduationCap,
 } from 'lucide-react';
 
 interface StudentManagementPageProps {
@@ -24,6 +25,7 @@ interface StudentManagementPageProps {
   classrooms: Classroom[];
   onNavigateToSheets?: () => void;
   onOpenClassroomManager?: () => void;
+  onViewStudentPortal?: (student: Student) => void;
 }
 
 export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
@@ -34,6 +36,7 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
   classrooms,
   onNavigateToSheets,
   onOpenClassroomManager,
+  onViewStudentPortal,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -348,6 +351,16 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1">
+                        {onViewStudentPortal && (
+                          <button
+                            type="button"
+                            onClick={() => onViewStudentPortal(stu)}
+                            title="ดูผลคะแนนในมุมมองนักเรียน (Student Portal)"
+                            className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <GraduationCap className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOpenEdit(stu)}
                           title="แก้ไขข้อมูล"

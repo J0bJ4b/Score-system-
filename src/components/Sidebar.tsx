@@ -8,6 +8,7 @@ import {
   BookOpen,
   Database,
   HelpCircle,
+  GraduationCap,
 } from 'lucide-react';
 
 export type NavTab =
@@ -18,7 +19,8 @@ export type NavTab =
   | 'students'
   | 'subjects'
   | 'google-sheets'
-  | 'backup';
+  | 'backup'
+  | 'student-portal';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -80,6 +82,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       sublabel: 'ซิงค์และนำเข้าข้อมูล',
       icon: FileSpreadsheet,
       badge: 'ใหม่',
+    },
+    {
+      id: 'student-portal' as NavTab,
+      label: 'ระบบดูคะแนนนักเรียน',
+      sublabel: 'มุมมองนักเรียน / ผู้ปกครอง',
+      icon: GraduationCap,
+      badge: 'บริการ',
     },
     {
       id: 'backup' as NavTab,

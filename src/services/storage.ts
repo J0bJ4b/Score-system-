@@ -350,6 +350,13 @@ export const storage = {
     return list.sort((a, b) => a.student_no - b.student_no);
   },
 
+  getStudentByCode(code: string): Student | null {
+    if (!code) return null;
+    const cleanCode = code.trim().toLowerCase();
+    const all = this.getAllStudents();
+    return all.find(s => s.student_code && s.student_code.trim().toLowerCase() === cleanCode) || null;
+  },
+
   getStudents(classroomId?: string): Student[] {
     const all = this.getAllStudents();
     if (!classroomId) {

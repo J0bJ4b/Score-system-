@@ -18,10 +18,12 @@ import { IndividualSummaryPage } from './pages/IndividualSummaryPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BackupPage } from './pages/BackupPage';
 import { GoogleSheetsSyncPage } from './pages/GoogleSheetsSyncPage';
+import { StudentPortalPage } from './pages/StudentPortalPage';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => storage.getCurrentUser());
   const [activeTab, setActiveTab] = useState<NavTab>('score-entry');
+  const [portalStudent, setPortalStudent] = useState<Student | null>(null);
 
   // Classroom state
   const [classrooms, setClassrooms] = useState<Classroom[]>(() => storage.getClassrooms());
@@ -90,9 +92,35 @@ export default function App() {
     }
   };
 
+  // If in student portal mode directly
+  if (portalStudent) {
+    return (
+      <StudentPortalPage
+        initialStudent={portalStudent}
+        allStudents={storage.getAllStudents()}
+        subjects={subjects}
+        allScoreItems={allScoreItems}
+        allScores={allScores}
+        terms={terms}
+        classrooms={classrooms}
+        user={currentUser}
+        onBackToTeacherApp={() => {
+          setPortalStudent(null);
+        }}
+      />
+    );
+  }
+
   // If not logged in, render LoginPage
   if (!currentUser) {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <LoginPage
+        onLoginSuccess={handleLoginSuccess}
+        onStudentLogin={(student) => {
+          setPortalStudent(student);
+        }}
+      />
+    );
   }
 
   const classroomName = activeClassroom.name;
@@ -109,6 +137,7 @@ export default function App() {
         activeClassroom={activeClassroom}
         onSelectClassroom={handleSelectClassroom}
         onOpenClassroomManager={() => setIsClassroomModalOpen(true)}
+        onOpenStudentPortal={() => setActiveTab('student-portal')}
         onLogout={handleLogout}
         onResetData={handleResetData}
       />
@@ -192,6 +221,9 @@ export default function App() {
               classrooms={classrooms}
               onNavigateToSheets={() => setActiveTab('google-sheets')}
               onOpenClassroomManager={() => setIsClassroomModalOpen(true)}
+              onViewStudentPortal={(stu) => {
+                setPortalStudent(stu);
+              }}
             />
           )}
 
@@ -214,6 +246,20 @@ export default function App() {
               classroom={classroomName}
               user={currentUser}
               onDataUpdated={reloadData}
+            />
+          )}
+
+          {activeTab === 'student-portal' && (
+            <StudentPortalPage
+              initialStudent={students[0] || null}
+              allStudents={storage.getAllStudents()}
+              subjects={subjects}
+              allScoreItems={allScoreItems}
+              allScores={allScores}
+              terms={terms}
+              classrooms={classrooms}
+              user={currentUser}
+              onBackToTeacherApp={() => setActiveTab('score-entry')}
             />
           )}
 

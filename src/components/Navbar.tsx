@@ -9,6 +9,7 @@ import {
   Settings,
   Plus,
   ChevronDown,
+  GraduationCap,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -20,6 +21,7 @@ interface NavbarProps {
   activeClassroom: Classroom;
   onSelectClassroom: (classroom: Classroom) => void;
   onOpenClassroomManager: () => void;
+  onOpenStudentPortal?: () => void;
   onLogout: () => void;
   onResetData: () => void;
 }
@@ -33,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeClassroom,
   onSelectClassroom,
   onOpenClassroomManager,
+  onOpenStudentPortal,
   onLogout,
 }) => {
   return (
@@ -89,6 +92,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden lg:inline">จัดการห้อง</span>
               </button>
             </div>
+
+            {onOpenStudentPortal && (
+              <button
+                type="button"
+                onClick={onOpenStudentPortal}
+                title="เข้าสู่ระบบดูคะแนนสำหรับนักเรียน (Student Portal)"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-sky-50 to-indigo-50 hover:from-sky-100 hover:to-indigo-100 text-indigo-800 rounded-xl text-xs font-bold transition-all border border-indigo-200 shadow-2xs cursor-pointer"
+              >
+                <GraduationCap className="w-4 h-4 text-indigo-600" />
+                <span>มุมมองนักเรียน</span>
+              </button>
+            )}
           </div>
 
           {/* Right: Quick Term Switcher & User Profile */}

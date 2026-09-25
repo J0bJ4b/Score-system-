@@ -20,6 +20,7 @@ import {
   Check,
   Table,
   Layers,
+  X,
 } from 'lucide-react';
 
 interface ScoreEntryPageProps {
@@ -55,7 +56,24 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'dirty'>('saved');
   const [lastSavedTime, setLastSavedTime] = useState<string>('');
+  const [showSavedToast, setShowSavedToast] = useState(false);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [viewMode, setViewMode] = useState<'single' | 'all'>('single');
+
+  // Trigger floating saved toast
+  const triggerSavedToast = () => {
+    setShowSavedToast(true);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => {
+      setShowSavedToast(false);
+    }, 2400);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
 
   // Local draft scores map: key = `${studentId}_${itemId}`
   const [draftScores, setDraftScores] = useState<
@@ -110,7 +128,9 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     const timer = setTimeout(() => {
       saveAllScores();
       setAutoSaveStatus('saved');
-      setLastSavedTime(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastSavedTime(timeStr);
+      triggerSavedToast();
     }, 900);
 
     return () => clearTimeout(timer);
@@ -141,7 +161,9 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   const handleManualSave = () => {
     saveAllScores();
     setAutoSaveStatus('saved');
-    setLastSavedTime(new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setLastSavedTime(timeStr);
+    triggerSavedToast();
   };
 
   // Score value change handler
@@ -291,7 +313,43 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 relative">
+      {/* Subtle Floating 'Saved' Toast Notification in the Top Right Corner */}
+      <div
+        className={`fixed top-4 right-4 sm:top-5 sm:right-6 z-50 transition-all duration-300 ease-out transform ${
+          showSavedToast
+            ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+            : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
+        }`}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-slate-900/90 text-white rounded-xl shadow-xl backdrop-blur-md border border-slate-700/60 text-xs sm:text-sm">
+          <div className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
+            <Check className="w-3.5 h-3.5 text-emerald-400" />
+          </div>
+          <div className="flex flex-col pr-1">
+            <div className="flex items-center gap-1.5 font-semibold text-white">
+              <span>บันทึกแล้ว</span>
+              <span className="text-[10px] font-medium text-emerald-300 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800/40">
+                Saved
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-300">
+              บันทึกคะแนนอัตโนมัติแล้ว {lastSavedTime ? `เวลา ${lastSavedTime}` : ''}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSavedToast(false)}
+            className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors ml-1 cursor-pointer"
+            title="ปิดการแจ้งเตือน"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
       {/* Top Filter and Selectors Card */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
