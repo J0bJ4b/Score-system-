@@ -148,7 +148,7 @@ export const GoogleSheetsSyncPage: React.FC<GoogleSheetsSyncPageProps> = ({
     setSuccessMsg('');
 
     try {
-      const title = `สมุดบันทึกคะแนน_${classroom}_ปีการศึกษา2568_${user.school_name || 'โรงเรียน'}`;
+      const title = `สมุดบันทึกคะแนน_${classroom}_ปีการศึกษา2569_${user.school_name || 'โรงเรียน'}`;
       const result = await createClassroomSpreadsheet(
         token,
         title,

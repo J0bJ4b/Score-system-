@@ -36,13 +36,13 @@ export default function App() {
       id: 'room-p5-1',
       name: 'ป.5/1',
       level: 'ประถมศึกษาปีที่ 5',
-      academic_year: '2568',
+      academic_year: '2569',
       homeroom_teacher: 'ครูสมศรี จิตเมตตา',
     };
 
   // Core database state
   const [terms, setTerms] = useState<Term[]>(() => storage.getTerms());
-  const [currentTerm, setCurrentTerm] = useState<Term>(() => terms[0] || { id: 'term-1', name: 'ภาคเรียนที่ 1', academic_year: '2568', max_score: 50 });
+  const [currentTerm, setCurrentTerm] = useState<Term>(() => terms[0] || { id: 'term-1', name: 'ภาคเรียนที่ 1', academic_year: '2569', max_score: 50 });
   const [students, setStudents] = useState<Student[]>(() => storage.getStudents(activeClassroomId));
   const [subjects, setSubjects] = useState<Subject[]>(() => storage.getSubjects());
   const [allScoreItems, setAllScoreItems] = useState<ScoreItem[]>(() => storage.getScoreItems());

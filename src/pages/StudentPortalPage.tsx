@@ -125,7 +125,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
         level: selectedStudent.classroom.includes('6')
           ? 'ประถมศึกษาปีที่ 6'
           : 'ประถมศึกษาปีที่ 5',
-        academic_year: '2568',
+        academic_year: '2569',
         homeroom_teacher: user?.full_name || 'ครูสมศรี จิตเมตตา',
       }
     );
@@ -396,7 +396,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                       </span>
                       <span>•</span>
                       <span>
-                        ปีการศึกษา: <strong className="text-white">{studentClassroom?.academic_year || '2568'}</strong>
+                        ปีการศึกษา: <strong className="text-white">{studentClassroom?.academic_year || '2569'}</strong>
                       </span>
                     </div>
                   </div>
@@ -910,7 +910,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                   {user?.school_name || 'โรงเรียนประถมศึกษา'}
                 </div>
                 <div className="text-xs text-slate-600">
-                  ปีการศึกษา {studentClassroom?.academic_year || '2568'} • {studentClassroom?.level} (ห้อง {studentClassroom?.name})
+                  ปีการศึกษา {studentClassroom?.academic_year || '2569'} • {studentClassroom?.level} (ห้อง {studentClassroom?.name})
                 </div>
               </div>
 

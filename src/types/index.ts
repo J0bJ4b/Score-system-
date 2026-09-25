@@ -2,7 +2,7 @@ export interface Classroom {
   id: string; // e.g. room-p5-1, room-p6-1
   name: string; // e.g. ป.5/1, ป.6/1
   level: string; // e.g. ประถมศึกษาปีที่ 5, ประถมศึกษาปีที่ 6
-  academic_year: string; // e.g. 2568
+  academic_year: string; // e.g. 2569
   homeroom_teacher?: string; // ครูประจำชั้น
 }
 
@@ -26,7 +26,7 @@ export interface Subject {
 export interface Term {
   id: string;
   name: string; // ภาคเรียนที่ 1, ภาคเรียนที่ 2
-  academic_year: string; // เช่น 2568
+  academic_year: string; // เช่น 2569
   max_score: number; // default 50
 }
 

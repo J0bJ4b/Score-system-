@@ -27,21 +27,21 @@ export const INITIAL_CLASSROOMS: Classroom[] = [
     id: 'room-p5-1',
     name: 'ป.5/1',
     level: 'ประถมศึกษาปีที่ 5',
-    academic_year: '2568',
+    academic_year: '2569',
     homeroom_teacher: 'ครูสมศรี จิตเมตตา',
   },
   {
     id: 'room-p6-1',
     name: 'ป.6/1',
     level: 'ประถมศึกษาปีที่ 6',
-    academic_year: '2568',
+    academic_year: '2569',
     homeroom_teacher: 'ครูสมศรี จิตเมตตา',
   },
 ];
 
 export const INITIAL_TERMS: Term[] = [
-  { id: 'term-1', name: 'ภาคเรียนที่ 1', academic_year: '2568', max_score: 50 },
-  { id: 'term-2', name: 'ภาคเรียนที่ 2', academic_year: '2568', max_score: 50 },
+  { id: 'term-1', name: 'ภาคเรียนที่ 1', academic_year: '2569', max_score: 50 },
+  { id: 'term-2', name: 'ภาคเรียนที่ 2', academic_year: '2569', max_score: 50 },
 ];
 
 export const INITIAL_SUBJECTS: Subject[] = [
@@ -240,8 +240,28 @@ export const storage = {
     if (!localStorage.getItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID)) {
       localStorage.setItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID, INITIAL_CLASSROOMS[0].id);
     }
+    const classroomsRaw = localStorage.getItem(STORAGE_KEYS.CLASSROOMS);
+    if (classroomsRaw) {
+      const classrooms: Classroom[] = JSON.parse(classroomsRaw);
+      const migratedClassrooms = classrooms.map((classroom) =>
+        classroom.academic_year === '2568' ? { ...classroom, academic_year: '2569' } : classroom
+      );
+      if (JSON.stringify(classrooms) !== JSON.stringify(migratedClassrooms)) {
+        localStorage.setItem(STORAGE_KEYS.CLASSROOMS, JSON.stringify(migratedClassrooms));
+      }
+    }
     if (!localStorage.getItem(STORAGE_KEYS.TERMS)) {
       localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(INITIAL_TERMS));
+    }
+    const termsRaw = localStorage.getItem(STORAGE_KEYS.TERMS);
+    if (termsRaw) {
+      const terms: Term[] = JSON.parse(termsRaw);
+      const migratedTerms = terms.map((term) =>
+        term.academic_year === '2568' ? { ...term, academic_year: '2569' } : term
+      );
+      if (JSON.stringify(terms) !== JSON.stringify(migratedTerms)) {
+        localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(migratedTerms));
+      }
     }
     if (!localStorage.getItem(STORAGE_KEYS.SUBJECTS)) {
       localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(INITIAL_SUBJECTS));

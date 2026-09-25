@@ -90,7 +90,7 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
             {user.school_name || 'โรงเรียนประถมศึกษา'}
           </div>
           <div className="text-xs text-slate-600">
-            ปีการศึกษา {activeClassroom?.academic_year || '2568'} • {activeClassroom?.level || `ระดับชั้นประถมศึกษาปีที่ ${classroom.replace('ป.', '')}`} (ห้อง {activeClassroom?.name || classroom})
+            ปีการศึกษา {activeClassroom?.academic_year || '2569'} • {activeClassroom?.level || `ระดับชั้นประถมศึกษาปีที่ ${classroom.replace('ป.', '')}`} (ห้อง {activeClassroom?.name || classroom})
           </div>
         </div>
 

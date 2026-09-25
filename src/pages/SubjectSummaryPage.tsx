@@ -262,7 +262,7 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
               ตารางสรุปผลการเรียน: วิชา{activeSubject.name} ({activeSubject.code})
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              ระดับชั้น {classroom} • น้ำหนัก {activeSubject.credit} หน่วยกิต • ปีการศึกษา 2568
+              ระดับชั้น {classroom} • น้ำหนัก {activeSubject.credit} หน่วยกิต • ปีการศึกษา 2569
             </p>
           </div>
           <div className="text-xs font-mono text-slate-400 hidden sm:block">

@@ -36,7 +36,7 @@ export const ClassroomManagerModal: React.FC<ClassroomManagerModalProps> = ({
   // Form states
   const [formName, setFormName] = useState('');
   const [formLevel, setFormLevel] = useState('ประถมศึกษาปีที่ 5');
-  const [formYear, setFormYear] = useState('2568');
+  const [formYear, setFormYear] = useState('2569');
   const [formTeacher, setFormTeacher] = useState('ครูสมศรี จิตเมตตา');
 
   if (!isOpen) return null;
@@ -45,7 +45,7 @@ export const ClassroomManagerModal: React.FC<ClassroomManagerModalProps> = ({
     setEditingClassroom(null);
     setFormName('');
     setFormLevel('ประถมศึกษาปีที่ 5');
-    setFormYear('2568');
+    setFormYear('2569');
     setFormTeacher('ครูสมศรี จิตเมตตา');
     setIsEditing(true);
   };
@@ -259,7 +259,7 @@ export const ClassroomManagerModal: React.FC<ClassroomManagerModalProps> = ({
                     type="text"
                     value={formYear}
                     onChange={(e) => setFormYear(e.target.value)}
-                    placeholder="2568"
+                    placeholder="2569"
                     required
                     className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500"
                   />
