@@ -1,0 +1,6 @@
+{
+  "name": "ระบบบันทึกคะแนนนักเรียน ป.5-6",
+  "description": "ระบบบันทึกและคำนวณเกรดนักเรียนประถมศึกษาสำหรับครูประจำชั้น ใช้งานง่าย รองรับ 2 ภาคเรียน คำนวณเกรดอัตโนมัติ และพิมพ์รายงานผลรายบุคคล",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
