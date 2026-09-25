@@ -13,6 +13,7 @@ import {
   getStudentTermScore,
   calculateGrade,
 } from '../utils/gradeCalculator';
+import { StudentProgressChart } from '../components/StudentProgressChart';
 import {
   Search,
   School,
@@ -62,7 +63,9 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
   const [studentCodeInput, setStudentCodeInput] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
   const [searchError, setSearchError] = useState('');
-  const [activeViewTab, setActiveViewTab] = useState<'yearly' | 'term-1' | 'term-2'>('yearly');
+  const [activeViewTab, setActiveViewTab] = useState<
+    'yearly' | 'term-1' | 'term-2' | 'progress'
+  >('yearly');
   const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -596,7 +599,34 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                 <BookOpen className="w-4 h-4" />
                 <span>คะแนนเก็บ ภาคเรียนที่ 2</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveViewTab('progress')}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer ${
+                  activeViewTab === 'progress'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                <span>กราฟพัฒนาการ (Recharts)</span>
+              </button>
             </div>
+
+            {/* VIEW 0: Progress Chart */}
+            {activeViewTab === 'progress' && selectedStudent && (
+              <div className="animate-in fade-in">
+                <StudentProgressChart
+                  student={selectedStudent}
+                  allStudents={allStudents}
+                  subjects={subjects}
+                  allScoreItems={allScoreItems}
+                  allScores={allScores}
+                  terms={terms}
+                />
+              </div>
+            )}
 
             {/* VIEW 1: Yearly Summary Table */}
             {activeViewTab === 'yearly' && (

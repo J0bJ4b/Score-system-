@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Student, Subject, ScoreItem, Score, Term, User, Classroom } from '../types';
 import { getStudentFullReport } from '../utils/gradeCalculator';
+import { StudentProgressChart } from '../components/StudentProgressChart';
 import {
   Printer,
   ChevronLeft,
@@ -10,6 +11,9 @@ import {
   BookOpen,
   Calendar,
   Layers,
+  TrendingUp,
+  FileText,
+  Sparkles,
 } from 'lucide-react';
 
 interface IndividualSummaryPageProps {
@@ -37,6 +41,8 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
     students[0]?.id || ''
   );
   const [printAllStudents, setPrintAllStudents] = useState(false);
+  const [activeTab, setActiveTab] = useState<'both' | 'report' | 'chart'>('both');
+  const [includeChartInPrint, setIncludeChartInPrint] = useState(false);
 
   // Sync selectedStudentId when classroom or student list changes
   useEffect(() => {
@@ -74,7 +80,7 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
     return (
       <div
         key={stu.id}
-        className={`bg-white p-6 sm:p-10 rounded-2xl shadow-sm border border-slate-200 text-slate-800 print-card ${
+        className={`bg-white p-6 sm:p-10 rounded-2xl shadow-xs border border-slate-200 text-slate-800 print-card ${
           isBatchItem ? 'page-break mb-8' : ''
         }`}
       >
@@ -90,7 +96,10 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
             {user.school_name || 'โรงเรียนประถมศึกษา'}
           </div>
           <div className="text-xs text-slate-600">
-            ปีการศึกษา {activeClassroom?.academic_year || '2569'} • {activeClassroom?.level || `ระดับชั้นประถมศึกษาปีที่ ${classroom.replace('ป.', '')}`} (ห้อง {activeClassroom?.name || classroom})
+            ปีการศึกษา {activeClassroom?.academic_year || '2569'} •{' '}
+            {activeClassroom?.level ||
+              `ระดับชั้นประถมศึกษาปีที่ ${classroom.replace('ป.', '')}`}{' '}
+            (ห้อง {activeClassroom?.name || classroom})
           </div>
         </div>
 
@@ -101,8 +110,12 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
             <div className="font-bold text-slate-900 text-base">{stu.name}</div>
           </div>
           <div>
-            <span className="text-slate-500 font-medium">เลขประจำตัวนักเรียน:</span>
-            <div className="font-bold text-slate-800 font-mono">{stu.student_code}</div>
+            <span className="text-slate-500 font-medium">
+              เลขประจำตัวนักเรียน:
+            </span>
+            <div className="font-bold text-slate-800 font-mono">
+              {stu.student_code}
+            </div>
           </div>
           <div>
             <span className="text-slate-500 font-medium">เลขที่:</span>
@@ -117,19 +130,34 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
         {/* Subjects & Grades Table */}
         <div className="py-5">
           <div className="text-xs font-bold text-slate-700 mb-2">
-            สรุปผลสัมฤทธิ์ทางการเรียนตามกลุ่มสาระการเรียนรู้ (คะแนนเต็มแต่ละภาคเรียน 50 คะแนน)
+            สรุปผลสัมฤทธิ์ทางการเรียนตามกลุ่มสาระการเรียนรู้
+            (คะแนนเต็มแต่ละภาคเรียน 50 คะแนน)
           </div>
           <div className="border border-slate-300 rounded-lg overflow-hidden">
             <table className="w-full text-left border-collapse text-xs sm:text-sm">
               <thead>
                 <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
-                  <th className="py-2.5 px-3 text-center w-12 border-r border-slate-300">ที่</th>
-                  <th className="py-2.5 px-3 w-24 border-r border-slate-300">รหัสวิชา</th>
-                  <th className="py-2.5 px-3 border-r border-slate-300">รายวิชา</th>
-                  <th className="py-2.5 px-2 text-center w-16 border-r border-slate-300">นก./ชม.</th>
-                  <th className="py-2.5 px-2 text-center w-20 border-r border-slate-300">เทอม 1 (50)</th>
-                  <th className="py-2.5 px-2 text-center w-20 border-r border-slate-300">เทอม 2 (50)</th>
-                  <th className="py-2.5 px-2 text-center w-20 border-r border-slate-300 font-extrabold">รวม (100)</th>
+                  <th className="py-2.5 px-3 text-center w-12 border-r border-slate-300">
+                    ที่
+                  </th>
+                  <th className="py-2.5 px-3 w-24 border-r border-slate-300">
+                    รหัสวิชา
+                  </th>
+                  <th className="py-2.5 px-3 border-r border-slate-300">
+                    รายวิชา
+                  </th>
+                  <th className="py-2.5 px-2 text-center w-16 border-r border-slate-300">
+                    นก./ชม.
+                  </th>
+                  <th className="py-2.5 px-2 text-center w-20 border-r border-slate-300">
+                    เทอม 1 (50)
+                  </th>
+                  <th className="py-2.5 px-2 text-center w-20 border-r border-slate-300">
+                    เทอม 2 (50)
+                  </th>
+                  <th className="py-2.5 px-2 text-center w-20 border-r border-slate-300 font-extrabold">
+                    รวม (100)
+                  </th>
                   <th className="py-2.5 px-3 text-center w-16">เกรด</th>
                 </tr>
               </thead>
@@ -160,7 +188,9 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
                     <td className="py-2 px-3 text-center font-bold text-base">
                       <span
                         className={`inline-block px-2 py-0.5 rounded ${
-                          item.grade === '0' || item.status === 'ร' || item.status === 'มส'
+                          item.grade === '0' ||
+                          item.status === 'ร' ||
+                          item.status === 'มส'
                             ? 'text-rose-700 font-extrabold'
                             : item.grade === '4'
                             ? 'text-emerald-800'
@@ -184,7 +214,9 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
               <Award className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-xs text-slate-500 font-semibold">ระดับผลการเรียนเฉลี่ย (GPA)</div>
+              <div className="text-xs text-slate-500 font-semibold">
+                ระดับผลการเรียนเฉลี่ย (GPA)
+              </div>
               <div className="text-2xl font-black text-indigo-900">
                 {report.gpa.toFixed(2)}
               </div>
@@ -194,12 +226,16 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
           <div className="flex flex-col justify-center text-xs text-slate-600 space-y-1">
             <div className="flex justify-between">
               <span>จำนวนหน่วยกิตรวม:</span>
-              <span className="font-bold text-slate-800">{report.total_credits} หน่วยกิต</span>
+              <span className="font-bold text-slate-800">
+                {report.total_credits} หน่วยกิต
+              </span>
             </div>
             <div className="flex justify-between">
               <span>ผลการประเมินการเลื่อนชั้น:</span>
               <span className="font-bold text-emerald-700">
-                {report.gpa >= 1.0 ? '✓ ผ่านเกณฑ์การประเมิน' : '⚠️ ต้องปรับปรุงแก้ไข'}
+                {report.gpa >= 1.0
+                  ? '✓ ผ่านเกณฑ์การประเมิน'
+                  : '⚠️ ต้องปรับปรุงแก้ไข'}
               </span>
             </div>
           </div>
@@ -207,7 +243,9 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
 
         {/* Teacher Comment / Remarks */}
         <div className="pt-2 pb-6 border-b border-slate-200 text-xs">
-          <span className="font-bold text-slate-700">ความคิดเห็นของครูประจำชั้น:</span>
+          <span className="font-bold text-slate-700">
+            ความคิดเห็นของครูประจำชั้น:
+          </span>
           <div className="mt-1 p-3 bg-slate-50/80 border border-slate-200 rounded-lg text-slate-700 min-h-[44px]">
             {report.gpa >= 3.5
               ? 'นักเรียนมีความตั้งใจเรียน มีความรับผิดชอบต่องานดีเยี่ยม ผลการเรียนอยู่ในเกณฑ์ยอดเยี่ยม ขอให้รักษาความดีนี้ต่อไป'
@@ -216,6 +254,24 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
               : 'นักเรียนควรเพิ่มความใส่ใจในการทบทวนบทเรียน และส่งงานที่ค้างให้ครบตามกำหนดเพื่อผลการเรียนที่ดียิ่งขึ้น'}
           </div>
         </div>
+
+        {/* Optional Printable Progress Chart */}
+        {includeChartInPrint && (
+          <div className="my-6 pt-4 border-t border-slate-200">
+            <div className="text-xs font-bold text-slate-700 mb-2">
+              📈 กราฟสรุปพัฒนาการการเรียนรู้ตลอดปีการศึกษา
+            </div>
+            <StudentProgressChart
+              student={stu}
+              allStudents={students}
+              subjects={subjects}
+              allScoreItems={allScoreItems}
+              allScores={allScores}
+              terms={terms}
+              className="border-slate-300"
+            />
+          </div>
+        )}
 
         {/* Signatures Block (ปพ. Style) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-6 text-center text-xs">
@@ -233,7 +289,9 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
             <div className="h-10 flex items-end justify-center">
               <span className="border-b border-dotted border-slate-500 w-44 inline-block"></span>
             </div>
-            <div className="font-bold text-slate-800">( .................................................... )</div>
+            <div className="font-bold text-slate-800">
+              ( .................................................... )
+            </div>
             <div className="text-slate-500 text-[11px]">ผู้ปกครองนักเรียน</div>
           </div>
 
@@ -241,7 +299,9 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
             <div className="h-10 flex items-end justify-center">
               <span className="border-b border-dotted border-slate-500 w-44 inline-block"></span>
             </div>
-            <div className="font-bold text-slate-800">( .................................................... )</div>
+            <div className="font-bold text-slate-800">
+              ( .................................................... )
+            </div>
             <div className="text-slate-500 text-[11px]">ผู้อำนวยการโรงเรียน</div>
           </div>
         </div>
@@ -252,17 +312,17 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Navigation and Print Bar */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200 no-print">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200 no-print space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-slate-800 flex items-center gap-2">
-              <span>รายงานผลการเรียนรายบุคคล (ปพ.5)</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                สำหรับแจกผู้ปกครอง
+              <span>รายงานผลการเรียนและพัฒนาการรายบุคคล</span>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                ปพ.5 / ปพ.6
               </span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              แสดงเกรดเฉลี่ย (GPA) ทุกวิชา พร้อมช่องลงนามครูประจำชั้นและผู้ปกครอง
+              แสดงผลการเรียนเฉลี่ย (GPA) ทุกวิชา พร้อมกราฟเส้นวิเคราะห์พัฒนาการรายบุคคล (Recharts)
             </p>
           </div>
 
@@ -285,13 +345,13 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
           </div>
         </div>
 
-        {/* Student Selector Row */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-slate-100">
+        {/* Student Selector Row & View Tabs */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrev}
               disabled={currentIndex <= 0}
-              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
               title="นักเรียนคนก่อนหน้า"
             >
               <ChevronLeft className="w-5 h-5 text-slate-700" />
@@ -312,35 +372,91 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
             <button
               onClick={handleNext}
               disabled={currentIndex >= students.length - 1}
-              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
               title="นักเรียนคนถัดไป"
             >
               <ChevronRight className="w-5 h-5 text-slate-700" />
             </button>
           </div>
 
-          <div className="text-xs text-slate-500">
-            นักเรียนคนที่ <strong>{currentIndex + 1}</strong> จากทั้งหมด {students.length} คน
+          {/* Tab Switcher: Both, Report Only, Chart Only */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+            <button
+              type="button"
+              onClick={() => setActiveTab('both')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                activeTab === 'both'
+                  ? 'bg-white text-indigo-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              แสดงทั้งสองอย่าง
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('chart')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                activeTab === 'chart'
+                  ? 'bg-white text-indigo-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>กราฟพัฒนาการ (Recharts)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('report')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                activeTab === 'report'
+                  ? 'bg-white text-indigo-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>แบบรายงาน ปพ.</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Report Card Preview or Batch List */}
-      {printAllStudents ? (
-        <div className="space-y-6">
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 no-print flex items-center justify-between">
-            <span>กำลังแสดงรายงานของนักเรียนทั้งห้อง ({students.length} คน) สำหรับพิมพ์</span>
-            <button
-              onClick={() => setPrintAllStudents(false)}
-              className="font-bold text-indigo-600 hover:underline"
-            >
-              กลับไปดูคนเดียว
-            </button>
-          </div>
-          {students.map((stu) => renderReportCard(stu, true))}
+      {/* Interactive Progress Chart Section (when activeTab is 'both' or 'chart') */}
+      {!printAllStudents && currentStudent && (activeTab === 'both' || activeTab === 'chart') && (
+        <div className="no-print animate-in fade-in">
+          <StudentProgressChart
+            student={currentStudent}
+            allStudents={students}
+            subjects={subjects}
+            allScoreItems={allScoreItems}
+            allScores={allScores}
+            terms={terms}
+          />
         </div>
-      ) : (
-        currentStudent && renderReportCard(currentStudent, false)
+      )}
+
+      {/* Report Card Preview or Batch List (when activeTab is 'both' or 'report') */}
+      {(activeTab === 'both' || activeTab === 'report' || printAllStudents) && (
+        <>
+          {printAllStudents ? (
+            <div className="space-y-6">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 no-print flex items-center justify-between">
+                <span>
+                  กำลังแสดงรายงานของนักเรียนทั้งห้อง ({students.length} คน)
+                  สำหรับพิมพ์
+                </span>
+                <button
+                  onClick={() => setPrintAllStudents(false)}
+                  className="font-bold text-indigo-600 hover:underline"
+                >
+                  กลับไปดูคนเดียว
+                </button>
+              </div>
+              {students.map((stu) => renderReportCard(stu, true))}
+            </div>
+          ) : (
+            currentStudent && renderReportCard(currentStudent, false)
+          )}
+        </>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { Classroom, Student, Subject, Term, ScoreItem, Score, User, Certificate, CertificateSettings, LineNotifySettings, NotificationLog } from '../types';
+import { Classroom, Student, Subject, Term, ScoreItem, Score, User, Certificate, CertificateSettings, LineNotifySettings, NotificationLog, ScoreWeightingConfig, CustomGradingScaleSettings } from '../types';
 
 const STORAGE_KEYS = {
   STUDENTS: 'gradebook_students_v2',
@@ -14,6 +14,33 @@ const STORAGE_KEYS = {
   CERTIFICATE_SETTINGS: 'gradebook_cert_settings_v1',
   LINE_NOTIFY_SETTINGS: 'gradebook_line_notify_settings_v1',
   NOTIFICATION_LOGS: 'gradebook_notification_logs_v1',
+  SCORE_WEIGHTING_CONFIGS: 'gradebook_score_weighting_v1',
+  GRADING_SCALE_SETTINGS: 'gradebook_grading_scale_v1',
+};
+
+export const DEFAULT_GRADING_SCALE_SETTINGS: CustomGradingScaleSettings = {
+  systemType: 'standard_8',
+  passingScore: 50,
+  atRiskThreshold: 50,
+  bands: [
+    { grade: '4', minScore: 80, maxScore: 100, gradePoint: 4.0, description: 'ดีเยี่ยม (Excellent)', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+    { grade: '3.5', minScore: 75, maxScore: 79.9, gradePoint: 3.5, description: 'ดีมาก (Very Good)', badgeColor: 'bg-teal-100 text-teal-800 border-teal-300' },
+    { grade: '3', minScore: 70, maxScore: 74.9, gradePoint: 3.0, description: 'ดี (Good)', badgeColor: 'bg-cyan-100 text-cyan-800 border-cyan-300' },
+    { grade: '2.5', minScore: 65, maxScore: 69.9, gradePoint: 2.5, description: 'ค่อนข้างดี (Fairly Good)', badgeColor: 'bg-blue-100 text-blue-800 border-blue-300' },
+    { grade: '2', minScore: 60, maxScore: 64.9, gradePoint: 2.0, description: 'ปานกลาง (Moderate)', badgeColor: 'bg-amber-100 text-amber-800 border-amber-300' },
+    { grade: '1.5', minScore: 55, maxScore: 59.9, gradePoint: 1.5, description: 'พอใช้ (Passable)', badgeColor: 'bg-orange-100 text-orange-800 border-orange-300' },
+    { grade: '1', minScore: 50, maxScore: 54.9, gradePoint: 1.0, description: 'ผ่านเกณฑ์ขั้นต่ำ (Pass)', badgeColor: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+    { grade: '0', minScore: 0, maxScore: 49.9, gradePoint: 0.0, description: 'ต่ำกว่าเกณฑ์ / ปรับปรุง (Fail)', badgeColor: 'bg-rose-100 text-rose-800 border-rose-300' },
+  ],
+};
+
+export const DEFAULT_SCORE_WEIGHTING_CONFIG: ScoreWeightingConfig = {
+  regular_ratio: 70,
+  midterm_ratio: 15,
+  final_ratio: 15,
+  num_regular_items: 3,
+  num_midterm_items: 1,
+  num_final_items: 1,
 };
 
 export const INITIAL_LINE_NOTIFY_SETTINGS: LineNotifySettings = {
@@ -880,6 +907,128 @@ export const storage = {
 
   clearNotificationLogs() {
     this.saveNotificationLogs([]);
+  },
+
+  // Custom Score Weighting & Evaluation Configuration
+  getScoreWeightingConfigs(): Record<string, ScoreWeightingConfig> {
+    const raw = localStorage.getItem(STORAGE_KEYS.SCORE_WEIGHTING_CONFIGS);
+    return raw ? JSON.parse(raw) : {};
+  },
+
+  getSubjectWeightingConfig(subjectId: string): ScoreWeightingConfig {
+    const configs = this.getScoreWeightingConfigs();
+    return configs[subjectId] || DEFAULT_SCORE_WEIGHTING_CONFIG;
+  },
+
+  saveSubjectWeightingConfig(subjectId: string, config: ScoreWeightingConfig) {
+    const configs = this.getScoreWeightingConfigs();
+    configs[subjectId] = config;
+    localStorage.setItem(STORAGE_KEYS.SCORE_WEIGHTING_CONFIGS, JSON.stringify(configs));
+  },
+
+  // Custom Grading Scale Settings
+  getGradingScaleSettings(): CustomGradingScaleSettings {
+    const raw = localStorage.getItem(STORAGE_KEYS.GRADING_SCALE_SETTINGS);
+    return raw ? JSON.parse(raw) : DEFAULT_GRADING_SCALE_SETTINGS;
+  },
+
+  saveGradingScaleSettings(settings: CustomGradingScaleSettings) {
+    localStorage.setItem(STORAGE_KEYS.GRADING_SCALE_SETTINGS, JSON.stringify(settings));
+  },
+
+  // Apply custom weighting scheme to generate balanced score items (Sum = 50 per term)
+  applyWeightingToSubject(
+    subjectId: string,
+    config: ScoreWeightingConfig,
+    termId?: string,
+    applyToAllSubjects: boolean = false
+  ) {
+    const subjectsToApply = applyToAllSubjects
+      ? this.getSubjects().map((s) => s.id)
+      : [subjectId];
+    const termsToApply = termId ? [termId] : this.getTerms().map((t) => t.id);
+
+    let allItems = this.getScoreItems();
+
+    subjectsToApply.forEach((subId) => {
+      // Save config
+      this.saveSubjectWeightingConfig(subId, config);
+
+      termsToApply.forEach((tId) => {
+        // Remove existing items for this subject & term
+        allItems = allItems.filter(
+          (item) => !(item.subject_id === subId && item.term_id === tId)
+        );
+
+        // Convert percentage ratio to 50 max score points per term
+        // e.g. Ratio 70:15:15 -> Regular 35, Midterm 7.5 (round to 7 or 8), Final 7.5 (round to 8 or 7)
+        // or Ratio 60:20:20 -> Regular 30, Midterm 10, Final 10
+        const totalTermPoints = 50;
+        const totalRatio = config.regular_ratio + config.midterm_ratio + config.final_ratio || 100;
+
+        const regularTarget = Math.round((config.regular_ratio / totalRatio) * totalTermPoints);
+        const midtermTarget = Math.round((config.midterm_ratio / totalRatio) * totalTermPoints);
+        // Ensure exact sum of 50
+        const finalTarget = totalTermPoints - regularTarget - midtermTarget;
+
+        const newItems: ScoreItem[] = [];
+
+        // 1. Regular Score Items (ชิ้นงาน/คะแนนเก็บ)
+        const numReg = Math.max(1, config.num_regular_items || 3);
+        const perReg = Math.floor(regularTarget / numReg);
+        const regRemainder = regularTarget % numReg;
+
+        for (let i = 1; i <= numReg; i++) {
+          const maxScore = perReg + (i === 1 ? regRemainder : 0);
+          newItems.push({
+            id: `item-${subId}-${tId}-reg-${i}`,
+            subject_id: subId,
+            term_id: tId,
+            name: `ใบงาน/ชิ้นงานที่ ${i}`,
+            max_score: maxScore,
+            category: 'regular',
+          });
+        }
+
+        // 2. Midterm Items (สอบกลางภาค)
+        const numMid = Math.max(1, config.num_midterm_items || 1);
+        const perMid = Math.floor(midtermTarget / numMid);
+        const midRemainder = midtermTarget % numMid;
+
+        for (let i = 1; i <= numMid; i++) {
+          const maxScore = perMid + (i === 1 ? midRemainder : 0);
+          newItems.push({
+            id: `item-${subId}-${tId}-mid-${i}`,
+            subject_id: subId,
+            term_id: tId,
+            name: numMid > 1 ? `สอบกลางภาค ตอนที่ ${i}` : 'สอบวัดผลกลางภาค',
+            max_score: maxScore,
+            category: 'midterm',
+          });
+        }
+
+        // 3. Final Items (สอบปลายภาค)
+        const numFin = Math.max(1, config.num_final_items || 1);
+        const perFin = Math.floor(finalTarget / numFin);
+        const finRemainder = finalTarget % numFin;
+
+        for (let i = 1; i <= numFin; i++) {
+          const maxScore = perFin + (i === 1 ? finRemainder : 0);
+          newItems.push({
+            id: `item-${subId}-${tId}-fin-${i}`,
+            subject_id: subId,
+            term_id: tId,
+            name: numFin > 1 ? `สอบปลายภาค ตอนที่ ${i}` : 'สอบวัดผลปลายภาค',
+            max_score: maxScore,
+            category: 'final',
+          });
+        }
+
+        allItems.push(...newItems);
+      });
+    });
+
+    this.saveScoreItems(allItems);
   },
 
   // Full Database Backup & Reset

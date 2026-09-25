@@ -146,6 +146,33 @@ export interface LineNotifySettings {
   auto_notify_enabled: boolean; // ส่งอัตโนมัติหรือให้ครูกดอนุมัติ
 }
 
+export interface ScoreWeightingConfig {
+  subject_id?: string;
+  regular_ratio: number; // e.g. 70 or 60 or 80
+  midterm_ratio: number; // e.g. 15 or 20 or 10
+  final_ratio: number; // e.g. 15 or 20 or 10
+  num_regular_items: number; // e.g. 3 items
+  num_midterm_items: number; // e.g. 1 item
+  num_final_items: number; // e.g. 1 item
+  name?: string;
+}
+
+export interface GradingScaleBand {
+  grade: string;
+  minScore: number;
+  maxScore: number;
+  gradePoint: number;
+  description: string;
+  badgeColor: string;
+}
+
+export interface CustomGradingScaleSettings {
+  systemType: 'standard_8' | 'letter_grade' | 'custom';
+  bands: GradingScaleBand[];
+  passingScore: number;
+  atRiskThreshold: number;
+}
+
 export type NotificationType =
   | 'score_saved'
   | 'midterm_final'

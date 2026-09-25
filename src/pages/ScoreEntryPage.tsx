@@ -12,6 +12,7 @@ import { storage } from '../services/storage';
 import { lineNotifyService } from '../services/lineNotify';
 import { getStudentTermScore } from '../utils/gradeCalculator';
 import { ScoreCsvImportExportModal } from '../components/ScoreCsvImportExportModal';
+import { ScoreWeightingModal } from '../components/ScoreWeightingModal';
 import {
   Save,
   CheckCircle2,
@@ -34,6 +35,7 @@ import {
   FileSpreadsheet,
   Download,
   Upload,
+  Sliders,
 } from 'lucide-react';
 
 interface ScoreEntryPageProps {
@@ -87,6 +89,9 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   // CSV Import/Export Modal state
   const [showCsvModal, setShowCsvModal] = useState(false);
   const [csvModalTab, setCsvModalTab] = useState<'export' | 'import'>('export');
+
+  // Custom Score Weighting Modal state
+  const [showWeightingModal, setShowWeightingModal] = useState(false);
 
   // Trigger floating saved toast
   const triggerSavedToast = () => {
@@ -576,6 +581,16 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                 </span>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowWeightingModal(true)}
+              className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-semibold text-xs sm:text-sm shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
+              title="ตั้งค่าสัดส่วนคะแนน (เก็บ : กลางภาค : ปลายภาค)"
+            >
+              <Sliders className="w-4 h-4 text-indigo-600" />
+              <span>สัดส่วนคะแนน</span>
+            </button>
 
             <button
               type="button"
@@ -1353,6 +1368,19 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
         classroomName={classroomName}
         defaultTab={csvModalTab}
         onScoresImported={() => {
+          onScoresUpdated();
+        }}
+      />
+
+      {/* Custom Score Weighting Modal */}
+      <ScoreWeightingModal
+        isOpen={showWeightingModal}
+        onClose={() => setShowWeightingModal(false)}
+        subjects={subjects}
+        currentSubjectId={selectedSubjectId}
+        terms={terms}
+        currentTermId={currentTerm.id}
+        onWeightingApplied={() => {
           onScoresUpdated();
         }}
       />
