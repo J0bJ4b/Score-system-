@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Student, Classroom } from '../types';
 import { storage } from '../services/storage';
 import { exportToCSV, parseStudentsCSV } from '../utils/gradeCalculator';
+import { SmartStudentPasteModal } from '../components/SmartStudentPasteModal';
 import {
   UserPlus,
   FileSpreadsheet,
@@ -17,6 +18,7 @@ import {
   GraduationCap,
   CreditCard,
   QrCode,
+  Sparkles,
 } from 'lucide-react';
 
 interface StudentManagementPageProps {
@@ -46,6 +48,7 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isSmartPasteOpen, setIsSmartPasteOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   // Form states
@@ -271,6 +274,16 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>นำเข้าจาก Excel/CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsSmartPasteOpen(true)}
+              className="px-3 py-2 text-xs sm:text-sm font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-colors flex items-center gap-1.5 border border-indigo-200 cursor-pointer shadow-2xs"
+              title="วางรายชื่อที่มีข้อมูลปนเปื้อนแล้วให้ระบบกรองอัตโนมัติ"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+              <span>✨ วางรายชื่ออัจฉริยะ (Smart Paste)</span>
             </button>
 
             {onNavigateToIdCards && (
@@ -766,6 +779,18 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Smart Student Paste & Filter Modal */}
+      <SmartStudentPasteModal
+        isOpen={isSmartPasteOpen}
+        onClose={() => setIsSmartPasteOpen(false)}
+        activeClassroom={activeClassroom}
+        classrooms={classrooms}
+        existingStudents={students}
+        onStudentsImported={() => {
+          onStudentsUpdated();
+        }}
+      />
     </div>
   );
 };
