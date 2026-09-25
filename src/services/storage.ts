@@ -17,7 +17,7 @@ export const INITIAL_USER: User = {
   username: 'kru.somsri',
   password_hash: '1234',
   full_name: 'ครูสมศรี จิตเมตตา',
-  school_name: 'โรงเรียนอนุบาลพัฒนาการศึกษา',
+  school_name: 'โรงเรียนบ้านป่าส่าน',
   classroom_responsible: 'ป.5/1',
   role: 'teacher',
 };
@@ -207,6 +207,32 @@ export const storage = {
   init() {
     if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([INITIAL_USER]));
+    }
+    const usersRaw = localStorage.getItem(STORAGE_KEYS.USERS);
+    if (usersRaw) {
+      const users: User[] = JSON.parse(usersRaw);
+      const migratedUsers = users.map((user) =>
+        user.school_name === 'โรงเรียนอนุบาลพัฒนาการศึกษา' ||
+        user.school_name === 'โรงเรียนประถมศึกษาพัฒนาการศึกษา'
+          ? { ...user, school_name: 'โรงเรียนบ้านป่าส่าน' }
+          : user
+      );
+      if (JSON.stringify(users) !== JSON.stringify(migratedUsers)) {
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(migratedUsers));
+      }
+    }
+    const currentUserRaw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    if (currentUserRaw) {
+      const currentUser: User = JSON.parse(currentUserRaw);
+      if (
+        currentUser.school_name === 'โรงเรียนอนุบาลพัฒนาการศึกษา' ||
+        currentUser.school_name === 'โรงเรียนประถมศึกษาพัฒนาการศึกษา'
+      ) {
+        localStorage.setItem(
+          STORAGE_KEYS.CURRENT_USER,
+          JSON.stringify({ ...currentUser, school_name: 'โรงเรียนบ้านป่าส่าน' })
+        );
+      }
     }
     if (!localStorage.getItem(STORAGE_KEYS.CLASSROOMS)) {
       localStorage.setItem(STORAGE_KEYS.CLASSROOMS, JSON.stringify(INITIAL_CLASSROOMS));

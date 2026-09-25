@@ -137,7 +137,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       <header className="relative z-10 max-w-6xl w-full mx-auto text-center pt-2 pb-6">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-indigo-200 text-xs sm:text-sm font-medium mb-3 shadow-inner">
           <School className="w-4 h-4 text-sky-300" />
-          <span>โรงเรียนประถมศึกษาพัฒนาการศึกษา • ประจำปีการศึกษา 2568</span>
+          <span>โรงเรียนบ้านป่าส่าน • ประจำปีการศึกษา 2568</span>
         </div>
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
           ระบบบริหารจัดการคะแนนและผลการเรียน

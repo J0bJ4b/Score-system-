@@ -211,7 +211,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                 </span>
                 <span className="text-xs text-slate-400 hidden sm:inline">•</span>
                 <span className="text-xs text-slate-500 hidden sm:inline">
-                  {user?.school_name || 'โรงเรียนประถมศึกษาพัฒนาการศึกษา'}
+                  {user?.school_name || 'โรงเรียนบ้านป่าส่าน'}
                 </span>
               </div>
               <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
@@ -891,7 +891,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                   <div className="text-[11px] text-slate-400 pt-2 flex items-center gap-2">
                     <span>{studentClassroom?.homeroom_teacher || 'ครูประจำชั้น'}</span>
                     <span>•</span>
-                    <span>{user?.school_name || 'โรงเรียนประถมศึกษาพัฒนาการศึกษา'}</span>
+                    <span>{user?.school_name || 'โรงเรียนบ้านป่าส่าน'}</span>
                   </div>
                 </div>
               </div>
