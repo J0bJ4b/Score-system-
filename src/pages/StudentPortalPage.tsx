@@ -301,7 +301,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                   ตรวจสอบผลการเรียนออนไลน์
                 </h2>
                 <p className="text-slate-600 text-sm sm:text-base max-w-md mx-auto mb-8">
-                  กรอก <span className="font-bold text-indigo-700">รหัสประจำตัวนักเรียน</span> เพื่อดูคะแนนเก็บรายวิชา สอบกลางภาค ปลายภาค และเกรดเฉลี่ยสะสม
+                  กรอก <span className="font-bold text-indigo-700">เลขประจำตัวประชาชน 13 หลัก</span> (บนบัตรประชาชน) เพื่อดูคะแนนเก็บรายวิชา สอบกลางภาค ปลายภาค และเกรดเฉลี่ยสะสม
                 </p>
 
                 {/* Search Form */}
@@ -315,12 +315,29 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                         type="text"
                         value={studentCodeInput}
                         onChange={(e) => {
-                          setStudentCodeInput(e.target.value);
+                          const val = e.target.value;
+                          const hasLetters = /[a-zA-Z\u0E00-\u0E7F]/.test(val);
+                          if (hasLetters) {
+                            setStudentCodeInput(val);
+                          } else {
+                            const digits = val.replace(/\D/g, '').slice(0, 13);
+                            if (digits.length > 1) {
+                              let formatted = digits[0];
+                              if (digits.length > 1) formatted += '-' + digits.slice(1, 5);
+                              if (digits.length > 5) formatted += '-' + digits.slice(5, 10);
+                              if (digits.length > 10) formatted += '-' + digits.slice(10, 12);
+                              if (digits.length > 12) formatted += '-' + digits.slice(12, 13);
+                              setStudentCodeInput(formatted);
+                            } else {
+                              setStudentCodeInput(digits);
+                            }
+                          }
                           if (searchError) setSearchError('');
                         }}
-                        placeholder="กรอกเลขประจำตัวประชาชน 13 หลัก เช่น 1509901010011 หรือชื่อนักเรียน"
+                        placeholder="กรอกเลขบัตร ปชช. เช่น 1-5099-01010-01-1 หรือชื่อนักเรียน"
+                        maxLength={17}
                         autoFocus
-                        className="w-full pl-11 pr-4 py-3.5 text-base sm:text-lg bg-slate-50 border-2 border-indigo-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 font-semibold text-slate-800 transition-all placeholder:text-slate-400 placeholder:text-sm"
+                        className="w-full pl-11 pr-4 py-3.5 text-base sm:text-lg bg-slate-50 border-2 border-indigo-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 font-semibold font-mono tracking-wider text-slate-800 transition-all placeholder:text-slate-400 placeholder:text-sm placeholder:font-normal"
                       />
                     </div>
                     <button

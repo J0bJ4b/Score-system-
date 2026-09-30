@@ -12,10 +12,17 @@ import {
   ShieldCheck,
   BookOpen,
   Award,
+  CreditCard,
+  Check,
 } from 'lucide-react';
 import { storage } from '../services/storage';
 import { User, Student } from '../types';
 import { signInWithGmail } from '../services/firebase';
+import {
+  formatCitizenId,
+  cleanCitizenId,
+  validateThaiCitizenId,
+} from '../utils/dmcParser';
 
 interface LoginPageProps {
   onLoginSuccess: (user: User) => void;
@@ -89,41 +96,89 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   };
 
+  const handleStudentInputChange = (val: string) => {
+    // If the input contains Thai/English letters, treat as student name search
+    const hasLetters = /[a-zA-Z\u0E00-\u0E7F]/.test(val);
+    if (hasLetters) {
+      setStudentCode(val);
+    } else {
+      // Numbers and hyphens: format progressively as X-XXXX-XXXXX-XX-X
+      const digits = val.replace(/\D/g, '').slice(0, 13);
+      if (digits.length > 1) {
+        let formatted = digits[0];
+        if (digits.length > 1) formatted += '-' + digits.slice(1, 5);
+        if (digits.length > 5) formatted += '-' + digits.slice(5, 10);
+        if (digits.length > 10) formatted += '-' + digits.slice(10, 12);
+        if (digits.length > 12) formatted += '-' + digits.slice(12, 13);
+        setStudentCode(formatted);
+      } else {
+        setStudentCode(digits);
+      }
+    }
+    if (studentError) setStudentError('');
+  };
+
   const handleStudentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setStudentError('');
 
-    const query = studentCode.trim().toLowerCase();
-    if (!query) {
-      setStudentError('กรุณากรอกรหัสประจำตัวนักเรียน');
+    const rawQuery = studentCode.trim();
+    if (!rawQuery) {
+      setStudentError('กรุณากรอกเลขประจำตัวประชาชน 13 หลัก หรือชื่อนักเรียน');
       return;
     }
 
+    const cleanQuery = cleanCitizenId(rawQuery);
     const allStudents = storage.getAllStudents();
-    const found = allStudents.find(
-      (s) =>
-        (s.student_code && s.student_code.toLowerCase() === query) ||
-        s.student_code === query.padStart(5, '0') ||
-        s.name.toLowerCase().includes(query)
-    );
+
+    const found = allStudents.find((s) => {
+      const studentCleanCode = cleanCitizenId(s.student_code || '');
+      // Match by 13-digit Citizen ID
+      if (cleanQuery && studentCleanCode === cleanQuery) {
+        return true;
+      }
+      if (cleanQuery.length >= 5 && studentCleanCode.includes(cleanQuery)) {
+        return true;
+      }
+      // Match by raw code (or student_no)
+      if (s.student_code && s.student_code.toLowerCase() === rawQuery.toLowerCase()) {
+        return true;
+      }
+      // Match by student name
+      if (s.name.toLowerCase().includes(rawQuery.toLowerCase())) {
+        return true;
+      }
+      return false;
+    });
 
     if (found) {
       if (onStudentLogin) {
         onStudentLogin(found);
       }
     } else {
-      setStudentError(`ไม่พบข้อมูลนักเรียนสำหรับ "${studentCode}" กรุณาตรวจสอบรหัสอีกครั้ง หรือคลิกเลือกตัวอย่างด้านล่าง`);
+      setStudentError(
+        `ไม่พบข้อมูลนักเรียนสำหรับเลขบัตร "${studentCode}" กรุณาตรวจสอบเลขประจำตัวประชาชน 13 หลักอีกครั้ง หรือคลิกเลือกตัวอย่างด้านล่าง`
+      );
     }
   };
 
-  const handleQuickStudentSelect = (code: string) => {
-    setStudentCode(code);
+  const handleQuickStudentSelect = (citizenId: string) => {
+    const formatted = formatCitizenId(citizenId);
+    setStudentCode(formatted);
+    const clean = cleanCitizenId(citizenId);
     const allStudents = storage.getAllStudents();
-    const found = allStudents.find((s) => s.student_code === code);
+    const found = allStudents.find(
+      (s) => cleanCitizenId(s.student_code || '') === clean || s.student_code === citizenId
+    );
     if (found && onStudentLogin) {
       onStudentLogin(found);
     }
   };
+
+  // Check if current input is 13 digits
+  const cleanDigits = cleanCitizenId(studentCode);
+  const is13Digits = cleanDigits.length === 13;
+  const isChecksumValid = is13Digits && validateThaiCitizenId(cleanDigits);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-sky-950 flex flex-col justify-between p-4 sm:p-6 lg:p-8 font-['Sarabun',sans-serif]">
@@ -160,22 +215,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3.5">
                   <div className="w-13 h-13 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
-                    <GraduationCap className="w-7 h-7 text-white" />
+                    <CreditCard className="w-7 h-7 text-white" />
                   </div>
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-bold mb-1">
                       <Sparkles className="w-3 h-3 text-emerald-300" />
-                      <span>ไม่ต้องเข้าสู่ระบบ (ไม่ต้องใช้รหัสผ่าน)</span>
+                      <span>ตรวจดูผลการเรียนผ่านเลขบัตรประชาชน (ไม่ต้องใช้รหัสผ่าน)</span>
                     </div>
                     <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-                      ตรวจสอบคะแนนนักเรียน
+                      ตรวจสอบคะแนนนักเรียนผ่านบัตร ปชช.
                     </h2>
                   </div>
                 </div>
               </div>
 
               <p className="text-indigo-100 text-xs sm:text-sm mt-3 leading-relaxed">
-                สำหรับนักเรียนและผู้ปกครอง เพียงกรอกรหัสประจำตัวนักเรียน 5 หลัก เพื่อดูคะแนนเก็บ 2 ภาคเรียน ผลสอบกลางภาค-ปลายภาค และเกรดสะสมได้ทันที
+                สำหรับนักเรียนและผู้ปกครอง กรอกเลขประจำตัวประชาชน 13 หลัก (บนบัตรประชาชน หรือสูติบัตร) เพื่อดูคะแนนเก็บ 2 ภาคเรียน ผลสอบกลางภาค-ปลายภาค และเกรดสะสมได้ทันที
               </p>
             </div>
 
@@ -183,25 +238,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             <div className="p-6 sm:p-7 flex-1 flex flex-col justify-between space-y-6">
               <form onSubmit={handleStudentSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs sm:text-sm font-bold text-slate-800 mb-1.5">
-                    รหัสประจำตัวนักเรียน (5 หลัก) หรือชื่อนักเรียน:
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-indigo-600" />
+                      <span>เลขประจำตัวประชาชน 13 หลัก (บนบัตรประชาชน):</span>
+                    </label>
+                    {is13Digits && (
+                      <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        <span>13 หลักครบถ้วน</span>
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-indigo-600">
-                      <Search className="w-5 h-5" />
+                      <CreditCard className="w-5 h-5" />
                     </div>
                     <input
                       type="text"
                       value={studentCode}
-                      onChange={(e) => {
-                        setStudentCode(e.target.value);
-                        if (studentError) setStudentError('');
-                      }}
-                      placeholder="กรอกรหัสนักเรียน เช่น 50101, 60101"
+                      onChange={(e) => handleStudentInputChange(e.target.value)}
+                      placeholder="กรอกเลขบัตร ปชช. เช่น 1-5099-01010-01-1"
+                      maxLength={17}
                       autoFocus
                       required
                       className="w-full pl-11 pr-4 py-3.5 text-base sm:text-lg font-bold font-mono tracking-wider bg-slate-50 border-2 border-indigo-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 transition-all text-slate-800 placeholder:text-slate-400 placeholder:text-sm placeholder:font-normal shadow-xs"
                     />
+                  </div>
+
+                  {/* Citizen ID advice */}
+                  <div className="mt-2 flex items-start gap-2 p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl text-[11px] text-indigo-900 leading-relaxed">
+                    <span className="text-xs shrink-0">💡</span>
+                    <span>
+                      <strong>คำแนะนำ:</strong> ดูเลข 13 หลักได้จากบัตรประชาชนของนักเรียน, บัตรนักเรียน, สูติบัตร หรือเอกสาร ปพ. (กรอกแบบมีขีดหรือไม่มีขีดก็ได้ และสามารถค้นหาด้วยชื่อนักเรียนได้เช่นกัน)
+                    </span>
                   </div>
                 </div>
 
@@ -217,7 +287,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   className="w-full py-3.5 px-5 bg-gradient-to-r from-indigo-600 via-indigo-700 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all text-sm sm:text-base flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
                 >
                   <Search className="w-4 h-4" />
-                  <span>เข้าดูคะแนนนักเรียนทันที</span>
+                  <span>ค้นหาผลการเรียนด้วยเลขบัตร ปชช.</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
@@ -227,58 +297,66 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 <div className="flex items-center justify-between mb-2.5">
                   <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>หรือคลิกเลือกตัวอย่างรหัส เพื่อทดสอบดูผลคะแนนทันที:</span>
+                    <span>หรือคลิกเลือกตัวอย่างเลขบัตร ปชช. เพื่อทดสอบดูผลคะแนนทันที:</span>
                   </span>
                   <span className="text-[11px] text-indigo-600 font-semibold">1-Click Test</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => handleQuickStudentSelect('50101')}
+                    onClick={() => handleQuickStudentSelect('1509901010011')}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-left transition-all cursor-pointer group"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-indigo-700 text-xs group-hover:text-indigo-900">50101</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100/70 text-indigo-700 font-semibold">ป.5/1</span>
+                      <span className="font-mono font-bold text-indigo-700 text-xs group-hover:text-indigo-900">
+                        1-5099-01010-01-1
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100/70 text-indigo-700 font-semibold">ป.5/1 • เลขที่ 1</span>
                     </div>
-                    <div className="text-[11px] text-slate-600 mt-1 truncate">ด.ช.กฤษณะ</div>
+                    <div className="text-[11px] text-slate-600 mt-1 truncate">เด็กชายกฤษณะ พงษ์ศิริ</div>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleQuickStudentSelect('50107')}
+                    onClick={() => handleQuickStudentSelect('1509901010070')}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-left transition-all cursor-pointer group"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-indigo-700 text-xs group-hover:text-amber-800">50107</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold">ป.5/1</span>
+                      <span className="font-mono font-bold text-indigo-700 text-xs group-hover:text-amber-800">
+                        1-5099-01010-07-0
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold">ป.5/1 • เลขที่ 7</span>
                     </div>
-                    <div className="text-[11px] text-slate-600 mt-1 truncate">ด.ช.วรพล (ขาดสอบ)</div>
+                    <div className="text-[11px] text-slate-600 mt-1 truncate">เด็กชายวรพล รักษ์ไทย (ขาดสอบ)</div>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleQuickStudentSelect('60101')}
+                    onClick={() => handleQuickStudentSelect('1509906010015')}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-left transition-all cursor-pointer group"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-sky-700 text-xs group-hover:text-sky-900">60101</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-semibold">ป.6/1</span>
+                      <span className="font-mono font-bold text-sky-700 text-xs group-hover:text-sky-900">
+                        1-5099-06010-01-5
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-semibold">ป.6/1 • เลขที่ 1</span>
                     </div>
-                    <div className="text-[11px] text-slate-600 mt-1 truncate">ด.ช.กิตติศักดิ์</div>
+                    <div className="text-[11px] text-slate-600 mt-1 truncate">เด็กชายกิตติศักดิ์ พรหมดี</div>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleQuickStudentSelect('60108')}
+                    onClick={() => handleQuickStudentSelect('1509906010082')}
                     className="p-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-left transition-all cursor-pointer group"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-emerald-700 text-xs group-hover:text-emerald-900">60108</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">ป.6/1</span>
+                      <span className="font-mono font-bold text-emerald-700 text-xs group-hover:text-emerald-900">
+                        1-5099-06010-08-2
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">ป.6/1 • เลขที่ 8</span>
                     </div>
-                    <div className="text-[11px] text-slate-600 mt-1 truncate">ด.ญ.กมลวรรณ</div>
+                    <div className="text-[11px] text-slate-600 mt-1 truncate">เด็กหญิงกมลวรรณ ทรัพย์เจริญ</div>
                   </button>
                 </div>
               </div>
