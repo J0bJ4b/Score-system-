@@ -14,6 +14,7 @@ import {
   CustomGradingScaleSettings,
   RemedialRecord,
   SchoolSettings,
+  StudentLearningFeedback,
 } from '../types';
 import { realtimeSync } from './realtimeSync';
 
@@ -35,6 +36,7 @@ const STORAGE_KEYS = {
   GRADING_SCALE_SETTINGS: 'gradebook_grading_scale_v1',
   REMEDIAL_RECORDS: 'gradebook_remedial_records_v1',
   SCHOOL_SETTINGS: 'gradebook_school_settings_v1',
+  STUDENT_FEEDBACKS: 'gradebook_student_feedbacks_v1',
 };
 
 export const INITIAL_SCHOOL_SETTINGS: SchoolSettings = {
@@ -1530,6 +1532,43 @@ export const storage = {
       message: `ปรับคะแนนของ ${rec.student_name} เป็น ${finalScore}/${rec.max_score} ในสมุดเกรดเรียบร้อยแล้ว`,
       updatedScore: finalScore,
     };
+  },
+
+  // Personalized Learning Feedback Methods
+  getAllStudentFeedbacks(): Record<string, StudentLearningFeedback> {
+    const ownerId = this.getActiveOwnerId();
+    const key = this.getUserKey(STORAGE_KEYS.STUDENT_FEEDBACKS, ownerId);
+    try {
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  },
+
+  getStudentFeedback(studentId: string): StudentLearningFeedback | null {
+    const all = this.getAllStudentFeedbacks();
+    return all[studentId] || null;
+  },
+
+  saveStudentFeedback(feedback: StudentLearningFeedback) {
+    const ownerId = this.getActiveOwnerId();
+    const key = this.getUserKey(STORAGE_KEYS.STUDENT_FEEDBACKS, ownerId);
+    const all = this.getAllStudentFeedbacks();
+    all[feedback.studentId] = {
+      ...feedback,
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(key, JSON.stringify(all));
+    realtimeSync.pushAllLocalDataToCloud(ownerId);
+  },
+
+  saveAllStudentFeedbacks(feedbacks: Record<string, StudentLearningFeedback>) {
+    const ownerId = this.getActiveOwnerId();
+    const key = this.getUserKey(STORAGE_KEYS.STUDENT_FEEDBACKS, ownerId);
+    const all = { ...this.getAllStudentFeedbacks(), ...feedbacks };
+    localStorage.setItem(key, JSON.stringify(all));
+    realtimeSync.pushAllLocalDataToCloud(ownerId);
   },
 
   // Full Database Backup & Reset

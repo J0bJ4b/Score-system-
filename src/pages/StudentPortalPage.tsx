@@ -20,6 +20,7 @@ import { StudentProgressChart } from '../components/StudentProgressChart';
 import { SchoolLogo } from '../components/SchoolLogo';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { realtimeSync } from '../services/realtimeSync';
+import { generateStudentLearningFeedback } from '../utils/feedbackGenerator';
 import {
   Search,
   School,
@@ -41,6 +42,9 @@ import {
   Info,
   TrendingUp,
   FileText,
+  Zap,
+  Lightbulb,
+  Target,
 } from 'lucide-react';
 
 interface StudentPortalPageProps {
@@ -660,6 +664,126 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Personalized Learning Feedback & Recommendations */}
+            {(() => {
+              const storedFeedback = storage.getStudentFeedback(selectedStudent.id);
+              const feedback =
+                storedFeedback ||
+                (fullReport
+                  ? generateStudentLearningFeedback(selectedStudent, fullReport)
+                  : null);
+
+              if (!feedback) return null;
+
+              return (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 border border-indigo-100 dark:border-slate-800 shadow-md space-y-4 relative overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-400 to-indigo-600 text-white flex items-center justify-center shadow-xs">
+                        <Lightbulb className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-100">
+                            ข้อเสนอแนะและคำแนะนำเพื่อการพัฒนาการเรียนรู้
+                          </h3>
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold border border-indigo-200/60 dark:border-indigo-800">
+                            วิเคราะห์เฉพาะบุคคล
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          ประเมินจากผลสัมฤทธิ์ทางการเรียนเฉลี่ยและจุดเด่นรายวิชา
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                      <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                        {feedback.performanceTier === 'excellent'
+                          ? '🌟 ระดับยอดเยี่ยม'
+                          : feedback.performanceTier === 'very_good'
+                          ? '⭐ ระดับดีมาก'
+                          : feedback.performanceTier === 'good'
+                          ? '✨ ระดับดี'
+                          : feedback.performanceTier === 'moderate'
+                          ? '🌱 ระดับพัฒนาได้ต่อเนื่อง'
+                          : '⚠️ ควรได้รับการดูแลใกล้ชิด'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Comment Body */}
+                  <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                    "{feedback.comment}"
+                  </div>
+
+                  {/* Strengths & Growth Areas Tags */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    {feedback.strengths && feedback.strengths.length > 0 && (
+                      <div className="p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 text-xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>จุดเด่นทางวิชาการ (Strengths):</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {feedback.strengths.map((subj, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2.5 py-0.5 rounded-xl bg-white dark:bg-slate-800 text-emerald-800 dark:text-emerald-200 font-semibold border border-emerald-200 dark:border-emerald-800 text-xs shadow-2xs"
+                            >
+                              ⭐ {subj}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {feedback.growthAreas && feedback.growthAreas.length > 0 && (
+                      <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                          <Target className="w-4 h-4 text-amber-600" />
+                          <span>วิชาที่ควรเน้นทบทวนเพิ่ม (Growth Areas):</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {feedback.growthAreas.map((subj, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2.5 py-0.5 rounded-xl bg-white dark:bg-slate-800 text-amber-800 dark:text-amber-200 font-semibold border border-amber-200 dark:border-amber-800 text-xs shadow-2xs"
+                            >
+                              💡 {subj}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Steps */}
+                  {feedback.actionSteps && feedback.actionSteps.length > 0 && (
+                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/70 text-xs space-y-2">
+                      <div className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5 text-amber-500" />
+                        <span>3 คำแนะนำเชิงปฏิบัติเพื่อยกระดับผลการเรียน:</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {feedback.actionSteps.map((step, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-start gap-2 text-[11px] leading-relaxed text-slate-700 dark:text-slate-300"
+                          >
+                            <span className="w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <span>{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Tab Navigation for Views */}
             <div className="flex items-center gap-2 border-b border-slate-200 pb-3 no-print">

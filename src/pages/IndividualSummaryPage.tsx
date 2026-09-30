@@ -5,6 +5,8 @@ import { formatCitizenId } from '../utils/dmcParser';
 import { StudentProgressChart } from '../components/StudentProgressChart';
 import { storage } from '../services/storage';
 import { SchoolLogo } from '../components/SchoolLogo';
+import { StudentFeedbackModal } from '../components/StudentFeedbackModal';
+import { generateStudentLearningFeedback } from '../utils/feedbackGenerator';
 import {
   Printer,
   ChevronLeft,
@@ -47,6 +49,8 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
   const [printAllStudents, setPrintAllStudents] = useState(false);
   const [activeTab, setActiveTab] = useState<'both' | 'report' | 'chart'>('both');
   const [includeChartInPrint, setIncludeChartInPrint] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [feedbackRefreshKey, setFeedbackRefreshKey] = useState(0);
 
   // Sync selectedStudentId when classroom or student list changes
   useEffect(() => {
@@ -250,16 +254,44 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
 
         {/* Teacher Comment / Remarks */}
         <div className="pt-2 pb-6 border-b border-slate-200 text-xs">
-          <span className="font-bold text-slate-700">
-            ความคิดเห็นของครูประจำชั้น:
-          </span>
-          <div className="mt-1 p-3 bg-slate-50/80 border border-slate-200 rounded-lg text-slate-700 min-h-[44px]">
-            {report.gpa >= 3.5
-              ? 'นักเรียนมีความตั้งใจเรียน มีความรับผิดชอบต่องานดีเยี่ยม ผลการเรียนอยู่ในเกณฑ์ยอดเยี่ยม ขอให้รักษาความดีนี้ต่อไป'
-              : report.gpa >= 2.5
-              ? 'นักเรียนมีความสนใจในการเรียนดี ส่งงานสม่ำเสมอ แนะนำให้พัฒนาทักษะเพิ่มเติมในวิชาที่ยังได้คะแนนปานกลาง'
-              : 'นักเรียนควรเพิ่มความใส่ใจในการทบทวนบทเรียน และส่งงานที่ค้างให้ครบตามกำหนดเพื่อผลการเรียนที่ดียิ่งขึ้น'}
-          </div>
+          {(() => {
+            const storedFeedback = storage.getStudentFeedback(stu.id);
+            const feedback = storedFeedback || generateStudentLearningFeedback(stu, report);
+            return (
+              <>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <span>ความคิดเห็นของครูประจำชั้น (วิเคราะห์เฉพาะบุคคล):</span>
+                    {storedFeedback?.isCustomized && (
+                      <span className="no-print text-[9px] px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 font-semibold">
+                        กำหนดเอง
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStudentId(stu.id);
+                      setIsFeedbackModalOpen(true);
+                    }}
+                    className="no-print text-indigo-600 hover:text-indigo-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer hover:underline"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>ปรับแต่งข้อคิดเห็น</span>
+                  </button>
+                </div>
+                <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-lg text-slate-700 min-h-[44px] leading-relaxed">
+                  {feedback.comment}
+                </div>
+                {feedback.actionSteps && feedback.actionSteps.length > 0 && (
+                  <div className="mt-2 text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="font-semibold text-slate-600">🎯 ข้อแนะนำเพื่อการพัฒนา:</span>
+                    <span>{feedback.actionSteps.join(' • ')}</span>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* Optional Printable Progress Chart */}
@@ -334,6 +366,15 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsFeedbackModalOpen(true)}
+              className="px-3.5 py-2 text-xs sm:text-sm font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>สร้างข้อคิดเห็นเฉพาะบุคคล</span>
+            </button>
+
             <button
               onClick={() => handlePrint(false)}
               className="px-4 py-2 text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
@@ -465,6 +506,20 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
           )}
         </>
       )}
+
+      {/* Personalized Learning Feedback Modal */}
+      <StudentFeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        students={students}
+        currentStudentId={selectedStudentId}
+        onSelectStudent={(stuId) => setSelectedStudentId(stuId)}
+        subjects={subjects}
+        allScoreItems={allScoreItems}
+        allScores={allScores}
+        terms={terms}
+        onFeedbackSaved={() => setFeedbackRefreshKey((prev) => prev + 1)}
+      />
     </div>
   );
 };

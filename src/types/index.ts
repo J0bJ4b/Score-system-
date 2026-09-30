@@ -333,4 +333,25 @@ export interface SchoolSettings {
   updatedAt?: string;
 }
 
+export type FeedbackTone = 'balanced' | 'academic' | 'encouraging' | 'ministry_standard';
+
+export interface StudentLearningFeedback {
+  id: string;
+  studentId: string;
+  studentName?: string;
+  classroomId?: string;
+  tone: FeedbackTone;
+  comment: string;
+  strengths: string[]; // วิชาที่ทำได้ดีเยี่ยม
+  growthAreas: string[]; // วิชาที่ควรพัฒนาเพิ่มเติม
+  actionSteps: string[]; // ข้อแนะนำเพื่อพัฒนาตนเอง 2-3 ข้อ
+  performanceTier: 'excellent' | 'very_good' | 'good' | 'moderate' | 'needs_attention';
+  gpa: number;
+  totalScorePercentage: number;
+  isCustomized?: boolean;
+  generatedAt: string;
+  updatedAt?: string;
+}
+
+
 
