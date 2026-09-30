@@ -16,6 +16,7 @@ import {
   Cloud,
   CloudOff,
   RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -30,6 +31,7 @@ interface NavbarProps {
   onOpenClassroomManager: () => void;
   onOpenStudentPortal?: () => void;
   onOpenSchoolSettings?: () => void;
+  onOpenSystemInfo?: () => void;
   onLogout: () => void;
   onResetData: () => void;
   syncStatus?: SyncStatus;
@@ -49,6 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenClassroomManager,
   onOpenStudentPortal,
   onOpenSchoolSettings,
+  onOpenSystemInfo,
   onLogout,
   syncStatus = 'connected',
   lastSyncTime,
@@ -224,6 +227,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
               {/* Theme Toggle (Night / Light Mode) */}
               <ThemeToggle />
+
+              {onOpenSystemInfo && (
+                <button
+                  type="button"
+                  onClick={onOpenSystemInfo}
+                  title="ความสามารถของระบบและประวัติการอัปเดต (Changelog)"
+                  className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-5 h-5 text-amber-500" />
+                  <span className="hidden xl:inline text-xs font-bold">Changelog</span>
+                </button>
+              )}
 
               {onOpenSchoolSettings && (
                 <button

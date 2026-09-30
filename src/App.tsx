@@ -26,6 +26,7 @@ import { BackupPage } from './pages/BackupPage';
 import { GoogleSheetsSyncPage } from './pages/GoogleSheetsSyncPage';
 import { StudentPortalPage } from './pages/StudentPortalPage';
 import { SchoolSettingsPage } from './pages/SchoolSettingsPage';
+import { SystemInfoModal } from './components/SystemInfoModal';
 import { realtimeSync, SyncStatus } from './services/realtimeSync';
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
   const [portalStudent, setPortalStudent] = useState<Student | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => realtimeSync.getStatus());
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(() => realtimeSync.getLastSyncTime());
+  const [isSystemInfoModalOpen, setIsSystemInfoModalOpen] = useState(false);
 
   // Classroom state
   const [classrooms, setClassrooms] = useState<Classroom[]>(() => storage.getClassrooms());
@@ -199,6 +201,7 @@ export default function App() {
         onOpenClassroomManager={() => setIsClassroomModalOpen(true)}
         onOpenStudentPortal={() => setActiveTab('student-portal')}
         onOpenSchoolSettings={() => setActiveTab('school-settings')}
+        onOpenSystemInfo={() => setIsSystemInfoModalOpen(true)}
         onLogout={handleLogout}
         onResetData={handleResetData}
         syncStatus={syncStatus}
@@ -426,6 +429,13 @@ export default function App() {
         activeClassroomId={activeClassroomId}
         onSelectClassroom={handleSelectClassroom}
         onClassroomsUpdated={reloadData}
+      />
+
+      {/* System Information & Changelog Modal */}
+      <SystemInfoModal
+        isOpen={isSystemInfoModalOpen}
+        onClose={() => setIsSystemInfoModalOpen(false)}
+        defaultTab="changelog"
       />
     </div>
   );

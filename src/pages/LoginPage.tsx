@@ -14,11 +14,13 @@ import {
   Award,
   CreditCard,
   Check,
+  Clock,
 } from 'lucide-react';
 import { storage } from '../services/storage';
 import { User, Student } from '../types';
 import { signInWithGmail } from '../services/firebase';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { SystemInfoModal } from '../components/SystemInfoModal';
 import {
   formatCitizenId,
   cleanCitizenId,
@@ -47,6 +49,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   // Student Search State (No login required)
   const [studentCode, setStudentCode] = useState('');
   const [studentError, setStudentError] = useState('');
+
+  // System Info / Features & Changelog Modal State
+  const [infoModalOpen, setInfoModalOpen] = useState(false);
+  const [infoModalTab, setInfoModalTab] = useState<'features' | 'changelog'>('features');
 
   // Real Gmail (Firebase Google Auth) Login
   const handleGoogleSignIn = async () => {
@@ -206,6 +212,36 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         <p className="text-slate-300 text-xs sm:text-sm max-w-2xl mx-auto mt-2 leading-relaxed">
           บริการข้อมูลผลการเรียนสำหรับนักเรียน ผู้ปกครอง และระบบบันทึกคะแนนสะสมสำหรับครูประจำชั้น
         </p>
+
+        {/* Action Buttons: System Capabilities & Changelog */}
+        <div className="flex flex-wrap items-center justify-center gap-2.5 mt-4">
+          <button
+            type="button"
+            onClick={() => {
+              setInfoModalTab('features');
+              setInfoModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs sm:text-sm font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer active:scale-95 group"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300 group-hover:rotate-12 transition-transform" />
+            <span>ระบบทำอะไรได้บ้าง? (ฟังก์ชันทั้งหมด)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setInfoModalTab('changelog');
+              setInfoModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 text-xs sm:text-sm font-bold backdrop-blur-md transition-all shadow-xs cursor-pointer active:scale-95 group"
+          >
+            <Clock className="w-4 h-4 text-sky-300 group-hover:-rotate-12 transition-transform" />
+            <span>ประวัติการอัปเดต (Changelog)</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold">
+              v2.6
+            </span>
+          </button>
+        </div>
       </header>
 
       {/* Main Content: Two Distinct Clearly-Separated Sections */}
@@ -589,6 +625,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <span>แยกข้อมูลอิสระ 100% ต่อบัญชี</span>
         </div>
       </footer>
+
+      {/* System Information & Changelog Modal */}
+      <SystemInfoModal
+        isOpen={infoModalOpen}
+        onClose={() => setInfoModalOpen(false)}
+        defaultTab={infoModalTab}
+      />
     </div>
   );
 };
