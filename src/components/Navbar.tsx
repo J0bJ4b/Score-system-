@@ -1,5 +1,6 @@
 import React from 'react';
-import { User, Term, Classroom } from '../types';
+import { User, Term, Classroom, SchoolSettings } from '../types';
+import { SchoolLogo } from './SchoolLogo';
 import {
   School,
   UserCircle,
@@ -14,6 +15,7 @@ import {
 
 interface NavbarProps {
   user: User;
+  schoolSettings?: SchoolSettings;
   currentTerm: Term;
   terms: Term[];
   onSelectTerm: (term: Term) => void;
@@ -22,12 +24,14 @@ interface NavbarProps {
   onSelectClassroom: (classroom: Classroom) => void;
   onOpenClassroomManager: () => void;
   onOpenStudentPortal?: () => void;
+  onOpenSchoolSettings?: () => void;
   onLogout: () => void;
   onResetData: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   user,
+  schoolSettings,
   currentTerm,
   terms,
   onSelectTerm,
@@ -36,25 +40,33 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectClassroom,
   onOpenClassroomManager,
   onOpenStudentPortal,
+  onOpenSchoolSettings,
   onLogout,
 }) => {
+  const displayedSchoolName = schoolSettings?.school_name || user.school_name || 'โรงเรียนบ้านป่าส่าน';
+  const displayedAffiliation = schoolSettings?.affiliation || 'สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน (สพฐ.)';
+
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs no-print">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-2">
-          {/* Logo & School Name */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-sky-500 text-white flex items-center justify-center shadow-sm">
-              <School className="w-6 h-6" />
+          {/* Logo & School Name (Clickable to School Settings) */}
+          <div
+            onClick={onOpenSchoolSettings}
+            className="flex items-center gap-3 shrink-0 cursor-pointer group"
+            title="คลิกเพื่อแก้ไขชื่อโรงเรียน โลโก้ และการตั้งค่า"
+          >
+            <div className="p-1 rounded-xl bg-slate-50 border border-slate-200 group-hover:border-indigo-400 group-hover:shadow-xs transition-all flex items-center justify-center">
+              <SchoolLogo settings={schoolSettings} size="md" />
             </div>
             <div className="hidden sm:block">
-              <h1 className="text-base sm:text-lg font-bold text-slate-800 leading-tight">
-                {user.school_name || 'โรงเรียนประถมศึกษา'}
+              <h1 className="text-base sm:text-lg font-extrabold text-slate-800 leading-tight group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                <span>{displayedSchoolName}</span>
               </h1>
-              <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                <span>ระบบบันทึกคะแนนนักเรียน</span>
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>ระดับชั้น ป.5-6</span>
+              <p className="text-xs text-slate-500 flex items-center gap-1.5 truncate max-w-xs">
+                <span>{displayedAffiliation}</span>
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                <span className="font-semibold text-slate-600 shrink-0">ปี {schoolSettings?.academic_year || currentTerm.academic_year}</span>
               </p>
             </div>
           </div>
@@ -158,6 +170,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shadow-2xs">
                   <UserCircle className="w-6 h-6" />
                 </div>
+              )}
+              {onOpenSchoolSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenSchoolSettings}
+                  title="ตั้งค่าชื่อโรงเรียน โลโก้ และข้อมูลสถานศึกษา"
+                  className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
               )}
               <button
                 onClick={onLogout}

@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Student, Classroom, User } from '../types';
+import { Student, Classroom, User, SchoolSettings } from '../types';
+import { formatCitizenId } from '../utils/dmcParser';
+import { storage } from '../services/storage';
+import { SchoolLogo } from '../components/SchoolLogo';
 import {
   CreditCard,
   Printer,
@@ -35,11 +38,12 @@ export const StudentIDCardPage: React.FC<StudentIDCardPageProps> = ({
   user,
   onViewStudentPortal,
 }) => {
+  const schoolSettings = useMemo(() => storage.getSchoolSettings(), []);
   const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0]?.id || '');
   const [cardTheme, setCardTheme] = useState<'blue' | 'emerald' | 'purple' | 'navy' | 'gold'>('blue');
   const [searchQuery, setSearchQuery] = useState('');
-  const [schoolName, setSchoolName] = useState<string>(user?.school_name || 'โรงเรียนบ้านป่าส่าน (สพฐ.)');
-  const [academicYear, setAcademicYear] = useState<string>(activeClassroom.academic_year || '2569');
+  const [schoolName, setSchoolName] = useState<string>(() => schoolSettings.school_name || user?.school_name || 'โรงเรียนบ้านป่าส่าน (สพฐ.)');
+  const [academicYear, setAcademicYear] = useState<string>(activeClassroom.academic_year || schoolSettings.academic_year || '2569');
   const [isBatchMode, setIsBatchMode] = useState<boolean>(false);
   const [cardsPerPage, setCardsPerPage] = useState<8 | 10>(8);
 
@@ -220,7 +224,7 @@ export const StudentIDCardPage: React.FC<StudentIDCardPageProps> = ({
                     </div>
                     <div>
                       <div className="font-bold text-xs text-slate-900">{stu.name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">รหัส: {stu.student_code}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">ปชช: {formatCitizenId(stu.student_code)}</div>
                     </div>
                   </div>
 
@@ -288,6 +292,7 @@ export const StudentIDCardPage: React.FC<StudentIDCardPageProps> = ({
                     student={selectedStudent}
                     theme={cardTheme}
                     schoolName={schoolName}
+                    schoolSettings={schoolSettings}
                     academicYear={academicYear}
                     classroomName={activeClassroom.name}
                     qrUrl={getStudentPortalUrl(selectedStudent.student_code)}
@@ -338,6 +343,7 @@ export const StudentIDCardPage: React.FC<StudentIDCardPageProps> = ({
                   student={stu}
                   theme={cardTheme}
                   schoolName={schoolName}
+                  schoolSettings={schoolSettings}
                   academicYear={academicYear}
                   classroomName={activeClassroom.name}
                   qrUrl={getStudentPortalUrl(stu.student_code)}
@@ -352,6 +358,7 @@ export const StudentIDCardPage: React.FC<StudentIDCardPageProps> = ({
                 student={selectedStudent}
                 theme={cardTheme}
                 schoolName={schoolName}
+                schoolSettings={schoolSettings}
                 academicYear={academicYear}
                 classroomName={activeClassroom.name}
                 qrUrl={getStudentPortalUrl(selectedStudent.student_code)}
@@ -379,6 +386,7 @@ interface CardProps {
   student: Student;
   theme: 'blue' | 'emerald' | 'purple' | 'navy' | 'gold';
   schoolName: string;
+  schoolSettings?: SchoolSettings;
   academicYear: string;
   classroomName: string;
   qrUrl: string;
@@ -388,6 +396,7 @@ export const SingleStudentCard: React.FC<CardProps> = ({
   student,
   theme,
   schoolName,
+  schoolSettings,
   academicYear,
   classroomName,
   qrUrl,
@@ -437,8 +446,8 @@ export const SingleStudentCard: React.FC<CardProps> = ({
       {/* Header Band */}
       <div className={`${styles.headerBg} px-3 py-2 text-white flex items-center justify-between`}>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
-            สพฐ
+          <div className="w-6 h-6 rounded-md bg-white/20 p-0.5 flex items-center justify-center shrink-0">
+            <SchoolLogo settings={schoolSettings} size="xs" />
           </div>
           <div>
             <div className="text-[11px] font-bold tracking-wide leading-tight line-clamp-1">
@@ -480,8 +489,8 @@ export const SingleStudentCard: React.FC<CardProps> = ({
 
           <div className="grid grid-cols-2 gap-1 text-[9px]">
             <div>
-              <span className="text-slate-400">เลขประจำตัว:</span>
-              <div className="font-mono font-bold text-slate-800">{student.student_code}</div>
+              <span className="text-slate-400">เลขประจำตัวประชาชน:</span>
+              <div className="font-mono font-bold text-slate-800 text-[9px] truncate">{formatCitizenId(student.student_code)}</div>
             </div>
             <div>
               <span className="text-slate-400">ชั้น/ห้อง:</span>
@@ -513,7 +522,7 @@ export const SingleStudentCard: React.FC<CardProps> = ({
       {/* Footer Band */}
       <div className="bg-slate-100 px-3 py-1 border-t border-slate-200 flex items-center justify-between text-[8px] text-slate-500">
         <span>กระทรวงศึกษาธิการ</span>
-        <span className="font-bold text-slate-700 font-mono">CODE: {student.student_code}</span>
+        <span className="font-bold text-slate-700 font-mono">ID: {formatCitizenId(student.student_code)}</span>
       </div>
     </div>
   );
@@ -556,7 +565,7 @@ export const SingleStudentCardBack: React.FC<CardProps> = ({
       <div className="border-t border-slate-200 pt-1.5 flex items-end justify-between text-[8px]">
         <div>
           <div className="font-mono text-[7px] text-slate-400">||||| | |||| || |||||| | |||</div>
-          <div className="font-mono text-[8px] font-bold text-slate-700">{student.student_code}</div>
+          <div className="font-mono text-[8px] font-bold text-slate-700">{formatCitizenId(student.student_code)}</div>
         </div>
 
         <div className="text-center space-y-0.5">

@@ -1,4 +1,20 @@
-import { Classroom, Student, Subject, Term, ScoreItem, Score, User, Certificate, CertificateSettings, LineNotifySettings, NotificationLog, ScoreWeightingConfig, CustomGradingScaleSettings } from '../types';
+import {
+  Classroom,
+  Student,
+  Subject,
+  Term,
+  ScoreItem,
+  Score,
+  User,
+  Certificate,
+  CertificateSettings,
+  LineNotifySettings,
+  NotificationLog,
+  ScoreWeightingConfig,
+  CustomGradingScaleSettings,
+  RemedialRecord,
+  SchoolSettings,
+} from '../types';
 
 const STORAGE_KEYS = {
   STUDENTS: 'gradebook_students_v2',
@@ -16,6 +32,34 @@ const STORAGE_KEYS = {
   NOTIFICATION_LOGS: 'gradebook_notification_logs_v1',
   SCORE_WEIGHTING_CONFIGS: 'gradebook_score_weighting_v1',
   GRADING_SCALE_SETTINGS: 'gradebook_grading_scale_v1',
+  REMEDIAL_RECORDS: 'gradebook_remedial_records_v1',
+  SCHOOL_SETTINGS: 'gradebook_school_settings_v1',
+};
+
+export const INITIAL_SCHOOL_SETTINGS: SchoolSettings = {
+  school_name: 'โรงเรียนบ้านป่าส่าน',
+  school_name_en: 'Ban Pa San School',
+  affiliation: 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษา (สพป.)',
+  ministry: 'สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน กระทรวงศึกษาธิการ',
+  school_code: '1050123456',
+  address: 'หมู่ 4 ตำบลป่าส่าน',
+  subdistrict: 'ป่าส่าน',
+  district: 'เมือง',
+  province: 'เชียงใหม่',
+  postal_code: '50000',
+  phone_number: '053-123456',
+  website_or_email: 'info@school.ac.th',
+  director_name: 'นายประเสริฐ สุขสวัสดิ์',
+  director_title: 'ผู้อำนวยการชำนาญการพิเศษ',
+  director_signature_url: '',
+  academic_year: '2569',
+  logo_url: '',
+  logo_type: 'garuda',
+  document_header_title: 'แบบบันทึกผลการพัฒนาคุณภาพผู้เรียน (ปพ.5)',
+  certificate_header_text: 'ประกาศนียบัตรเชิดชูเกียรติ',
+  teacher_name: 'ครูสมศรี จิตเมตตา',
+  teacher_signature_url: '',
+  theme_accent_color: '#059669',
 };
 
 export const DEFAULT_GRADING_SCALE_SETTINGS: CustomGradingScaleSettings = {
@@ -45,6 +89,7 @@ export const DEFAULT_SCORE_WEIGHTING_CONFIG: ScoreWeightingConfig = {
 
 export const INITIAL_LINE_NOTIFY_SETTINGS: LineNotifySettings = {
   enabled: true,
+  channel: 'line_share', // ค่าเริ่มต้น: แชร์เข้ากลุ่ม LINE โดยตรง (ฟรี 100% ไม่ต้องใช้ Token)
   token: '',
   target_group_name: 'กลุ่มผู้ปกครอง ป.5/1 (โรงเรียนบ้านป่าส่าน)',
   school_signature: 'โรงเรียนบ้านป่าส่าน',
@@ -54,6 +99,13 @@ export const INITIAL_LINE_NOTIFY_SETTINGS: LineNotifySettings = {
   notify_on_missing_or_absent: true,
   low_score_threshold_percent: 50,
   auto_notify_enabled: false,
+  telegram_bot_token: '',
+  telegram_chat_id: '',
+  discord_webhook_url: '',
+  line_oa_channel_access_token: '',
+  line_oa_destination_type: 'broadcast',
+  line_oa_destination_id: '',
+  custom_webhook_url: '',
 };
 
 export const INITIAL_NOTIFICATION_LOGS: NotificationLog[] = [
@@ -157,6 +209,134 @@ export const INITIAL_CERTIFICATES: Certificate[] = [
   },
 ];
 
+export const INITIAL_REMEDIAL_RECORDS: RemedialRecord[] = [
+  {
+    id: 'rem-1',
+    student_id: 'stu-9',
+    student_name: 'เด็กชายอิทธิพล สุริยา',
+    student_code: '1509901010096',
+    student_no: 9,
+    classroom_id: 'room-p5-1',
+    classroom_name: 'ป.5/1',
+    subject_id: 'sub-math',
+    subject_name: 'คณิตศาสตร์',
+    subject_code: 'ค15101',
+    term_id: 'term-1',
+    term_name: 'ภาคเรียนที่ 1',
+    score_item_id: 'item-sub-math-term-1-mid',
+    score_item_name: 'สอบกลางภาค',
+    indicator_or_standard: 'ค 1.1 ป.5/2 การบวก ลบ คูณ หารระคนของเศษส่วนและจำนวนคละ',
+    original_score: 3.5,
+    max_score: 10,
+    target_passing_score: 5,
+    learning_defect: 'ยังสับสนขั้นตอนการหา ค.ร.น. เพื่อทำตัวส่วนให้เท่ากัน และคิดเลขผิดพลาดบ่อย',
+    remedial_method: 'individual_tutoring',
+    remedial_method_detail: 'ครูสอนทบทวนหลักการทำเศษส่วนให้เท่ากันทีละขั้นตอน พร้อมฝึกทำโจทย์ตัวอย่าง 5 ข้อ',
+    remedial_date: '๑๕ กันยายน ๒๕๖๙',
+    remedial_duration_hours: 2,
+    re_exam_date: '๑๘ กันยายน ๒๕๖๙',
+    re_exam_score: 6.5,
+    final_recorded_score: 5.0,
+    status: 'passed',
+    teacher_notes: 'นักเรียนตั้งใจดีขึ้น เข้าใจกระบวนการทำเศษส่วนและผ่านการประเมินรอบแก้ตัว',
+    remedial_round: 1,
+    synced_to_gradebook: true,
+    createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+  },
+  {
+    id: 'rem-2',
+    student_id: 'stu-7',
+    student_name: 'เด็กชายวรพล รักษ์ไทย',
+    student_code: '1509901010070',
+    student_no: 7,
+    classroom_id: 'room-p5-1',
+    classroom_name: 'ป.5/1',
+    subject_id: 'sub-thai',
+    subject_name: 'ภาษาไทย',
+    subject_code: 'ท15101',
+    term_id: 'term-1',
+    term_name: 'ภาคเรียนที่ 1',
+    score_item_id: 'item-sub-thai-term-1-1',
+    score_item_name: 'ใบงานที่ 1 การอ่านจับใจความ',
+    indicator_or_standard: 'ท 1.1 ป.5/3 แยกข้อเท็จจริงและข้อคิดเห็นจากเรื่องที่อ่าน',
+    original_score: 4,
+    max_score: 10,
+    target_passing_score: 5,
+    learning_defect: 'ยังแยกแยะระหว่างข้อเท็จจริงที่มีหลักฐานอ้างอิง กับข้อคิดเห็นส่วนบุคคลไม่ได้',
+    remedial_method: 'remedial_worksheet',
+    remedial_method_detail: 'มอบหมายชุดฝึกทักษะการอ่านวิเคราะห์ข้อเท็จจริง/ข้อคิดเห็น ฉบับปรับพื้นฐาน 2 ชุด',
+    remedial_date: '๒๒ กันยายน ๒๕๖๙',
+    remedial_duration_hours: 1.5,
+    re_exam_date: '๒๖ กันยายน ๒๕๖๙',
+    re_exam_score: null,
+    final_recorded_score: null,
+    status: 'in_progress',
+    teacher_notes: 'อยู่ระหว่างฝึกทำแบบฝึกหัดเสริม นัดหมายสอบประเมินแก้ตัวในชั่วโมงซ่อมเสริม',
+    remedial_round: 1,
+    synced_to_gradebook: false,
+    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+  },
+  {
+    id: 'rem-3',
+    student_id: 'stu-18',
+    student_name: 'เด็กหญิงศศิธร บุญญา',
+    student_code: '1509901010185',
+    student_no: 18,
+    classroom_id: 'room-p5-1',
+    classroom_name: 'ป.5/1',
+    subject_id: 'sub-eng',
+    subject_name: 'ภาษาอังกฤษ',
+    subject_code: 'อ15101',
+    term_id: 'term-1',
+    term_name: 'ภาคเรียนที่ 1',
+    score_item_id: 'item-sub-eng-term-1-2',
+    score_item_name: 'ใบงานที่ 2 ไวยากรณ์ Present Simple',
+    indicator_or_standard: 'ต 1.2 ป.5/4 พูดและเขียนเพื่อให้ข้อมูลเกี่ยวกับตนเองและเรื่องใกล้ตัว',
+    original_score: 3,
+    max_score: 10,
+    target_passing_score: 5,
+    learning_defect: 'ยังไม่เข้าใจกฎการเติม -s / -es หลังประธานเอกพจน์บุรุษที่ 3',
+    remedial_method: 'peer_tutoring',
+    remedial_method_detail: 'จับคู่เพื่อนช่วยเพื่อน (ด.ญ.กัญญารัตน์) ช่วยอธิบายและทบทวนตารางกริยา',
+    remedial_date: '๒๕ กันยายน ๒๕๖๙',
+    remedial_duration_hours: 1,
+    re_exam_date: '๓๐ กันยายน ๒๕๖๙',
+    status: 're_exam_scheduled',
+    teacher_notes: 'นัดสอบแก้ตัวข้อเขียน 10 ข้อ วันศุกร์นี้เวลา 15.30 น.',
+    remedial_round: 1,
+    synced_to_gradebook: false,
+    createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+  },
+  {
+    id: 'rem-4',
+    student_id: 'stu-605',
+    student_name: 'เด็กชายปิยวัฒน์ สมบูรณ์',
+    student_code: '1509906010058',
+    student_no: 5,
+    classroom_id: 'room-p6-1',
+    classroom_name: 'ป.6/1',
+    subject_id: 'sub-sci',
+    subject_name: 'วิทยาศาสตร์และเทคโนโลยี',
+    subject_code: 'ว16101',
+    term_id: 'term-1',
+    term_name: 'ภาคเรียนที่ 1',
+    score_item_id: 'item-sub-sci-term-1-mid',
+    score_item_name: 'สอบกลางภาค การต่อวงจรไฟฟ้า',
+    indicator_or_standard: 'ว 2.3 ป.6/1 ออกแบบการทดลองและทดลองการต่อวงจรไฟฟ้าอย่างง่าย',
+    original_score: 2,
+    max_score: 10,
+    target_passing_score: 5,
+    learning_defect: 'ขาดสอบเนื่องจากลากิจ และยังไม่ได้ศึกษาการต่อวงจรแบบอนุกรมและขนาน',
+    remedial_method: 'digital_learning',
+    remedial_method_detail: 'ให้ศึกษาคลิปวิดีโอการทดลองวงจรไฟฟ้า และปฏิบัติการต่อวงจรจำลอง',
+    status: 'pending',
+    teacher_notes: 'รอนักเรียนติดต่อครูผู้สอนเพื่อเริ่มการสอนซ่อมเสริม',
+    remedial_round: 1,
+    synced_to_gradebook: false,
+    createdAt: new Date(Date.now() - 3600000 * 6).toISOString(),
+  },
+];
+
 export const INITIAL_USER: User = {
   id: 'user-somsri',
   username: 'kru.somsri',
@@ -203,44 +383,44 @@ export const INITIAL_SUBJECTS: Subject[] = [
 ];
 
 export const INITIAL_STUDENTS: Student[] = [
-  // ห้อง ป.5/1 (20 คน)
-  { id: 'stu-1', student_no: 1, name: 'เด็กชายกฤษณะ พงษ์ศิริ', student_code: '50101', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
-  { id: 'stu-2', student_no: 2, name: 'เด็กชายชานนท์ สุขเจริญ', student_code: '50102', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
-  { id: 'stu-3', student_no: 3, name: 'เด็กชายนพรัตน์ วงศ์สุวรรณ', student_code: '50103', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
-  { id: 'stu-4', student_no: 4, name: 'เด็กชายธีรเดช เจริญสุข', student_code: '50104', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
-  { id: 'stu-5', student_no: 5, name: 'เด็กชายปกรณ์ ธนะชัย', student_code: '50105', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
-  { id: 'stu-6', student_no: 6, name: 'เด็กชายภานุพงศ์ ทองแท้', student_code: '50106', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
-  { id: 'stu-7', student_no: 7, name: 'เด็กชายวรพล รักษ์ไทย', student_code: '50107', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
-  { id: 'stu-8', student_no: 8, name: 'เด็กชายศิรวิทย์ แก้วมณี', student_code: '50108', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
-  { id: 'stu-9', student_no: 9, name: 'เด็กชายอิทธิพล สุริยา', student_code: '50109', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
-  { id: 'stu-10', student_no: 10, name: 'เด็กหญิงกัญญารัตน์ ชัยชนะ', student_code: '50110', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-11', student_no: 11, name: 'เด็กหญิงจิดาภา มิ่งขวัญ', student_code: '50111', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-12', student_no: 12, name: 'เด็กหญิงณิชารีย์ สว่างวงศ์', student_code: '50112', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-13', student_no: 13, name: 'เด็กหญิงธนภรณ์ รุ่งเรือง', student_code: '50113', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-14', student_no: 14, name: 'เด็กหญิงพรทิพย์ ศรีสวัสดิ์', student_code: '50114', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-15', student_no: 15, name: 'เด็กหญิงพิมพ์ชนก บัวงาม', student_code: '50115', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-16', student_no: 16, name: 'เด็กหญิงมนัสนันท์ ทรัพย์มี', student_code: '50116', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-17', student_no: 17, name: 'เด็กหญิงวรรณิษา มหาวรรณ', student_code: '50117', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-18', student_no: 18, name: 'เด็กหญิงศศิธร บุญญา', student_code: '50118', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-19', student_no: 19, name: 'เด็กหญิงสิริพร สิทธิผล', student_code: '50119', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
-  { id: 'stu-20', student_no: 20, name: 'เด็กหญิงอารียา สมหวัง', student_code: '50120', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  // ห้อง ป.5/1 (20 คน) - เลขประจำตัวประชาชน 13 หลัก
+  { id: 'stu-1', student_no: 1, name: 'เด็กชายกฤษณะ พงษ์ศิริ', student_code: '1509901010011', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
+  { id: 'stu-2', student_no: 2, name: 'เด็กชายชานนท์ สุขเจริญ', student_code: '1509901010029', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
+  { id: 'stu-3', student_no: 3, name: 'เด็กชายนพรัตน์ วงศ์สุวรรณ', student_code: '1509901010037', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
+  { id: 'stu-4', student_no: 4, name: 'เด็กชายธีรเดช เจริญสุข', student_code: '1509901010045', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
+  { id: 'stu-5', student_no: 5, name: 'เด็กชายปกรณ์ ธนะชัย', student_code: '1509901010053', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
+  { id: 'stu-6', student_no: 6, name: 'เด็กชายภานุพงศ์ ทองแท้', student_code: '1509901010061', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
+  { id: 'stu-7', student_no: 7, name: 'เด็กชายวรพล รักษ์ไทย', student_code: '1509901010070', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
+  { id: 'stu-8', student_no: 8, name: 'เด็กชายศิรวิทย์ แก้วมณี', student_code: '1509901010088', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
+  { id: 'stu-9', student_no: 9, name: 'เด็กชายอิทธิพล สุริยา', student_code: '1509901010096', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'ชาย' },
+  { id: 'stu-10', student_no: 10, name: 'เด็กหญิงกัญญารัตน์ ชัยชนะ', student_code: '1509901010100', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-11', student_no: 11, name: 'เด็กหญิงจิดาภา มิ่งขวัญ', student_code: '1509901010118', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-12', student_no: 12, name: 'เด็กหญิงณิชารีย์ สว่างวงศ์', student_code: '1509901010126', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-13', student_no: 13, name: 'เด็กหญิงธนภรณ์ รุ่งเรือง', student_code: '1509901010134', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-14', student_no: 14, name: 'เด็กหญิงพรทิพย์ ศรีสวัสดิ์', student_code: '1509901010142', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-15', student_no: 15, name: 'เด็กหญิงพิมพ์ชนก บัวงาม', student_code: '1509901010151', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-16', student_no: 16, name: 'เด็กหญิงมนัสนันท์ ทรัพย์มี', student_code: '1509901010169', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-17', student_no: 17, name: 'เด็กหญิงวรรณิษา มหาวรรณ', student_code: '1509901010177', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-18', student_no: 18, name: 'เด็กหญิงศศิธร บุญญา', student_code: '1509901010185', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-19', student_no: 19, name: 'เด็กหญิงสิริพร สิทธิผล', student_code: '1509901010193', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
+  { id: 'stu-20', student_no: 20, name: 'เด็กหญิงอารียา สมหวัง', student_code: '1509901010207', classroom_id: 'room-p5-1', classroom: 'ป.5/1', gender: 'หญิง' },
 
-  // ห้อง ป.6/1 (15 คน)
-  { id: 'stu-601', student_no: 1, name: 'เด็กชายกิตติศักดิ์ พรหมดี', student_code: '60101', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
-  { id: 'stu-602', student_no: 2, name: 'เด็กชายจิรายุ ภูมิดี', student_code: '60102', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
-  { id: 'stu-603', student_no: 3, name: 'เด็กชายณัฐวุฒิ บุญมี', student_code: '60103', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
-  { id: 'stu-604', student_no: 4, name: 'เด็กชายทัศนัย ศรีทอง', student_code: '60104', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
-  { id: 'stu-605', student_no: 5, name: 'เด็กชายปิยวัฒน์ สมบูรณ์', student_code: '60105', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
-  { id: 'stu-606', student_no: 6, name: 'เด็กชายพิชญุตม์ จันทร์เพ็ญ', student_code: '60106', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
-  { id: 'stu-607', student_no: 7, name: 'เด็กชายวรเมธ คงเจริญ', student_code: '60107', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
-  { id: 'stu-608', student_no: 8, name: 'เด็กหญิงกมลวรรณ ทรัพย์เจริญ', student_code: '60108', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
-  { id: 'stu-609', student_no: 9, name: 'เด็กหญิงชญานิษฐ์ วงศ์ไทย', student_code: '60109', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
-  { id: 'stu-610', student_no: 10, name: 'เด็กหญิงณิชกานต์ อารีย์', student_code: '60110', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
-  { id: 'stu-611', student_no: 11, name: 'เด็กหญิงธัญลักษณ์ ศรีประเสริฐ', student_code: '60111', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
-  { id: 'stu-612', student_no: 12, name: 'เด็กหญิงปวีณา มณีโชติ', student_code: '60112', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
-  { id: 'stu-613', student_no: 13, name: 'เด็กหญิงภัทรวดี ทิพย์มณี', student_code: '60113', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
-  { id: 'stu-614', student_no: 14, name: 'เด็กหญิงสุภัสสรา แก้ววิไล', student_code: '60114', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
-  { id: 'stu-615', student_no: 15, name: 'เด็กหญิงอนุสรา บำรุงสุข', student_code: '60115', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
+  // ห้อง ป.6/1 (15 คน) - เลขประจำตัวประชาชน 13 หลัก
+  { id: 'stu-601', student_no: 1, name: 'เด็กชายกิตติศักดิ์ พรหมดี', student_code: '1509906010015', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
+  { id: 'stu-602', student_no: 2, name: 'เด็กชายจิรายุ ภูมิดี', student_code: '1509906010023', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
+  { id: 'stu-603', student_no: 3, name: 'เด็กชายณัฐวุฒิ บุญมี', student_code: '1509906010031', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
+  { id: 'stu-604', student_no: 4, name: 'เด็กชายทัศนัย ศรีทอง', student_code: '1509906010040', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
+  { id: 'stu-605', student_no: 5, name: 'เด็กชายปิยวัฒน์ สมบูรณ์', student_code: '1509906010058', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
+  { id: 'stu-606', student_no: 6, name: 'เด็กชายพิชญุตม์ จันทร์เพ็ญ', student_code: '1509906010066', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
+  { id: 'stu-607', student_no: 7, name: 'เด็กชายวรเมธ คงเจริญ', student_code: '1509906010074', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'ชาย' },
+  { id: 'stu-608', student_no: 8, name: 'เด็กหญิงกมลวรรณ ทรัพย์เจริญ', student_code: '1509906010082', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
+  { id: 'stu-609', student_no: 9, name: 'เด็กหญิงชญานิษฐ์ วงศ์ไทย', student_code: '1509906010091', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
+  { id: 'stu-610', student_no: 10, name: 'เด็กหญิงณิชกานต์ อารีย์', student_code: '1509906010104', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
+  { id: 'stu-611', student_no: 11, name: 'เด็กหญิงธัญลักษณ์ ศรีประเสริฐ', student_code: '1509906010112', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
+  { id: 'stu-612', student_no: 12, name: 'เด็กหญิงปวีณา มณีโชติ', student_code: '1509906010121', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
+  { id: 'stu-613', student_no: 13, name: 'เด็กหญิงภัทรวดี ทิพย์มณี', student_code: '1509906010139', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
+  { id: 'stu-614', student_no: 14, name: 'เด็กหญิงสุภัสสรา แก้ววิไล', student_code: '1509906010147', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
+  { id: 'stu-615', student_no: 15, name: 'เด็กหญิงอนุสรา บำรุงสุข', student_code: '1509906010155', classroom_id: 'room-p6-1', classroom: 'ป.6/1', gender: 'หญิง' },
 ];
 
 // Helper to generate score items for all subjects across both terms
@@ -413,6 +593,30 @@ export const storage = {
     }
     if (!localStorage.getItem(STORAGE_KEYS.STUDENTS)) {
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(INITIAL_STUDENTS));
+    } else {
+      const studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      if (studentsRaw) {
+        try {
+          const storedStudents: Student[] = JSON.parse(studentsRaw);
+          let changed = false;
+          const updatedStudents = storedStudents.map((s) => {
+            if (!s.student_code || s.student_code.length < 13) {
+              changed = true;
+              const initMatch = INITIAL_STUDENTS.find((is) => is.id === s.id);
+              const newCode = initMatch
+                ? initMatch.student_code
+                : `15099${String(s.classroom?.includes('6') ? 60100 : 50100) + String(s.student_no).padStart(2, '0')}`.padEnd(13, '0');
+              return { ...s, student_code: newCode };
+            }
+            return s;
+          });
+          if (changed) {
+            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
+          }
+        } catch (e) {
+          console.warn('Student migration check notice:', e);
+        }
+      }
     }
     if (!localStorage.getItem(STORAGE_KEYS.SCORE_ITEMS)) {
       const items = generateDefaultScoreItems(INITIAL_SUBJECTS, INITIAL_TERMS);
@@ -435,6 +639,9 @@ export const storage = {
     }
     if (!localStorage.getItem(STORAGE_KEYS.NOTIFICATION_LOGS)) {
       localStorage.setItem(STORAGE_KEYS.NOTIFICATION_LOGS, JSON.stringify(INITIAL_NOTIFICATION_LOGS));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.REMEDIAL_RECORDS)) {
+      localStorage.setItem(STORAGE_KEYS.REMEDIAL_RECORDS, JSON.stringify(INITIAL_REMEDIAL_RECORDS));
     }
   },
 
@@ -600,6 +807,32 @@ export const storage = {
     // Also remove associated scores
     const scores = this.getScores().filter(s => s.student_id !== studentId);
     this.saveScores(scores);
+    // Also remove associated remedial records
+    const remedials = this.getAllRemedialRecords().filter(r => r.student_id !== studentId);
+    this.saveRemedialRecords(remedials);
+  },
+
+  clearStudentsByClassroom(classroomId: string) {
+    const allStudents = this.getAllStudents();
+    const studentsToDelete = allStudents.filter(
+      (s) => s.classroom_id === classroomId || (!s.classroom_id && classroomId === 'room-p5-1')
+    );
+    const idsToDelete = new Set(studentsToDelete.map((s) => s.id));
+
+    const remainingStudents = allStudents.filter((s) => !idsToDelete.has(s.id));
+    this.saveStudents(remainingStudents);
+
+    const remainingScores = this.getScores().filter((s) => !idsToDelete.has(s.student_id));
+    this.saveScores(remainingScores);
+
+    const remainingRemedials = this.getAllRemedialRecords().filter((r) => !idsToDelete.has(r.student_id));
+    this.saveRemedialRecords(remainingRemedials);
+  },
+
+  clearAllStudents() {
+    this.saveStudents([]);
+    this.saveScores([]);
+    this.saveRemedialRecords([]);
   },
 
   // Subjects
@@ -864,10 +1097,55 @@ export const storage = {
     localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(settings));
   },
 
-  // LINE Notify & Communication Settings
+  // School Settings (Name, Logo, Director, Affiliation, Address, etc.)
+  getSchoolSettings(): SchoolSettings {
+    const raw = localStorage.getItem(STORAGE_KEYS.SCHOOL_SETTINGS);
+    if (!raw) return { ...INITIAL_SCHOOL_SETTINGS };
+    try {
+      return { ...INITIAL_SCHOOL_SETTINGS, ...JSON.parse(raw) };
+    } catch {
+      return { ...INITIAL_SCHOOL_SETTINGS };
+    }
+  },
+
+  saveSchoolSettings(settings: SchoolSettings) {
+    localStorage.setItem(STORAGE_KEYS.SCHOOL_SETTINGS, JSON.stringify(settings));
+    // Keep user's school_name in sync
+    const currentUser = this.getCurrentUser();
+    if (currentUser && settings.school_name) {
+      currentUser.school_name = settings.school_name;
+      this.setCurrentUser(currentUser);
+    }
+    // Keep certificate settings in sync
+    const certSettings = this.getCertificateSettings();
+    certSettings.school_name = settings.school_name;
+    if (settings.director_name) certSettings.principal_name = settings.director_name;
+    if (settings.teacher_name) certSettings.homeroom_teacher = settings.teacher_name;
+    if (settings.logo_type && ['garuda', 'seal', 'education'].includes(settings.logo_type)) {
+      certSettings.school_logo_type = settings.logo_type as any;
+    }
+    this.saveCertificateSettings(certSettings);
+
+    // Keep line notify signature in sync
+    const lineSettings = this.getLineNotifySettings();
+    lineSettings.school_signature = settings.school_name;
+    this.saveLineNotifySettings(lineSettings);
+  },
+
+  // Multi-Channel Communication Settings (LINE, Telegram, Discord, LINE OA)
   getLineNotifySettings(): LineNotifySettings {
     const raw = localStorage.getItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS);
-    return raw ? JSON.parse(raw) : INITIAL_LINE_NOTIFY_SETTINGS;
+    if (!raw) return { ...INITIAL_LINE_NOTIFY_SETTINGS };
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        ...INITIAL_LINE_NOTIFY_SETTINGS,
+        ...parsed,
+        channel: parsed.channel || (parsed.token ? 'line_notify' : 'line_share'),
+      };
+    } catch {
+      return { ...INITIAL_LINE_NOTIFY_SETTINGS };
+    }
   },
 
   saveLineNotifySettings(settings: LineNotifySettings) {
@@ -1031,6 +1309,134 @@ export const storage = {
     this.saveScoreItems(allItems);
   },
 
+  // Remedial & Re-exam Tracking
+  getRemedialRecords(classroomId?: string): RemedialRecord[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.REMEDIAL_RECORDS);
+    const list: RemedialRecord[] = raw ? JSON.parse(raw) : INITIAL_REMEDIAL_RECORDS;
+    if (classroomId) {
+      return list.filter((r) => !r.classroom_id || r.classroom_id === classroomId);
+    }
+    return list;
+  },
+
+  getAllRemedialRecords(): RemedialRecord[] {
+    const raw = localStorage.getItem(STORAGE_KEYS.REMEDIAL_RECORDS);
+    return raw ? JSON.parse(raw) : INITIAL_REMEDIAL_RECORDS;
+  },
+
+  saveRemedialRecords(records: RemedialRecord[]) {
+    localStorage.setItem(STORAGE_KEYS.REMEDIAL_RECORDS, JSON.stringify(records));
+  },
+
+  addRemedialRecord(record: Omit<RemedialRecord, 'id'>): RemedialRecord {
+    const records = this.getAllRemedialRecords();
+    const newRecord: RemedialRecord = {
+      ...record,
+      id: `rem-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      createdAt: record.createdAt || new Date().toISOString(),
+    };
+    records.unshift(newRecord);
+    this.saveRemedialRecords(records);
+    return newRecord;
+  },
+
+  batchAddRemedialRecords(newRecords: Array<Omit<RemedialRecord, 'id'>>): RemedialRecord[] {
+    const records = this.getAllRemedialRecords();
+    const created: RemedialRecord[] = [];
+    newRecords.forEach((r, idx) => {
+      const item: RemedialRecord = {
+        ...r,
+        id: `rem-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+        createdAt: r.createdAt || new Date().toISOString(),
+      };
+      records.unshift(item);
+      created.push(item);
+    });
+    this.saveRemedialRecords(records);
+    return created;
+  },
+
+  updateRemedialRecord(record: RemedialRecord): RemedialRecord {
+    const records = this.getAllRemedialRecords();
+    const idx = records.findIndex((r) => r.id === record.id);
+    const updated = {
+      ...record,
+      updatedAt: new Date().toISOString(),
+    };
+    if (idx !== -1) {
+      records[idx] = updated;
+      this.saveRemedialRecords(records);
+    }
+    return updated;
+  },
+
+  deleteRemedialRecord(id: string) {
+    const records = this.getAllRemedialRecords().filter((r) => r.id !== id);
+    this.saveRemedialRecords(records);
+  },
+
+  // Sync passed re-exam score back to student's score in Gradebook
+  syncRemedialScoreToGradebook(
+    recordId: string,
+    rule: 'cap_passing' | 'actual_score' = 'cap_passing'
+  ): { success: boolean; message: string; updatedScore?: number } {
+    const records = this.getAllRemedialRecords();
+    const rec = records.find((r) => r.id === recordId);
+    if (!rec) {
+      return { success: false, message: 'ไม่พบรายการสอนซ่อมเสริม' };
+    }
+    if (rec.status !== 'passed') {
+      return { success: false, message: 'สถานะยังไม่ผ่านการสอบแก้ตัว ไม่สามารถปรับคะแนนได้' };
+    }
+    if (!rec.score_item_id) {
+      return { success: false, message: 'ไม่มีรหัสรายการคะแนนที่สอบตก' };
+    }
+
+    const passingScore = rec.target_passing_score || Math.round(rec.max_score * 0.5);
+    const reExamScore = rec.re_exam_score ?? passingScore;
+    const finalScore = rule === 'cap_passing' ? Math.min(reExamScore, passingScore) : reExamScore;
+
+    const allScores = this.getScores();
+    const scoreIdx = allScores.findIndex(
+      (s) => s.student_id === rec.student_id && s.score_item_id === rec.score_item_id
+    );
+
+    const now = new Date().toISOString();
+    const noteText = `สอบแก้ตัวผ่าน (${finalScore}/${rec.max_score}) เมื่อ ${rec.re_exam_date || 'ล่าสุด'}`;
+
+    if (scoreIdx !== -1) {
+      allScores[scoreIdx] = {
+        ...allScores[scoreIdx],
+        score: finalScore,
+        status: 'normal',
+        note: allScores[scoreIdx].note ? `${allScores[scoreIdx].note} | ${noteText}` : noteText,
+        updated_at: now,
+      };
+    } else {
+      allScores.push({
+        id: `score-${rec.student_id}-${rec.score_item_id}`,
+        student_id: rec.student_id,
+        score_item_id: rec.score_item_id,
+        score: finalScore,
+        status: 'normal',
+        note: noteText,
+        updated_at: now,
+      });
+    }
+    this.saveScores(allScores);
+
+    rec.final_recorded_score = finalScore;
+    rec.synced_to_gradebook = true;
+    rec.updatedAt = now;
+    this.saveRemedialRecords(records);
+
+    return {
+      success: true,
+      message: `ปรับคะแนนของ ${rec.student_name} เป็น ${finalScore}/${rec.max_score} ในสมุดเกรดเรียบร้อยแล้ว`,
+      updatedScore: finalScore,
+    };
+  },
+
   // Full Database Backup & Reset
   exportDatabase() {
     return {
@@ -1046,8 +1452,10 @@ export const storage = {
       scores: this.getScores(),
       certificates: this.getAllCertificates(),
       certificate_settings: this.getCertificateSettings(),
+      school_settings: this.getSchoolSettings(),
       line_notify_settings: this.getLineNotifySettings(),
       notification_logs: this.getNotificationLogs(),
+      remedial_records: this.getAllRemedialRecords(),
     };
   },
 
@@ -1065,8 +1473,10 @@ export const storage = {
     if (jsonData.scores) localStorage.setItem(STORAGE_KEYS.SCORES, JSON.stringify(jsonData.scores));
     if (jsonData.certificates) localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(jsonData.certificates));
     if (jsonData.certificate_settings) localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(jsonData.certificate_settings));
+    if (jsonData.school_settings) localStorage.setItem(STORAGE_KEYS.SCHOOL_SETTINGS, JSON.stringify(jsonData.school_settings));
     if (jsonData.line_notify_settings) localStorage.setItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS, JSON.stringify(jsonData.line_notify_settings));
     if (jsonData.notification_logs) localStorage.setItem(STORAGE_KEYS.NOTIFICATION_LOGS, JSON.stringify(jsonData.notification_logs));
+    if (jsonData.remedial_records) localStorage.setItem(STORAGE_KEYS.REMEDIAL_RECORDS, JSON.stringify(jsonData.remedial_records));
   },
 
   resetToDefault() {
@@ -1080,8 +1490,10 @@ export const storage = {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID);
     localStorage.removeItem(STORAGE_KEYS.CERTIFICATES);
     localStorage.removeItem(STORAGE_KEYS.CERTIFICATE_SETTINGS);
+    localStorage.removeItem(STORAGE_KEYS.SCHOOL_SETTINGS);
     localStorage.removeItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS);
     localStorage.removeItem(STORAGE_KEYS.NOTIFICATION_LOGS);
+    localStorage.removeItem(STORAGE_KEYS.REMEDIAL_RECORDS);
     this.init();
   },
 };

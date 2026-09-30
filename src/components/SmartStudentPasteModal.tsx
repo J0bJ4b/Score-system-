@@ -87,7 +87,7 @@ export const SmartStudentPasteModal: React.FC<SmartStudentPasteModalProps> = ({
   const [autoDetectNo, setAutoDetectNo] = useState(true);
   const [autoDetectCode, setAutoDetectCode] = useState(true);
   const [autoDetectGender, setAutoDetectGender] = useState(true);
-  const [removeIdCard13Digits, setRemoveIdCard13Digits] = useState(true);
+  const [useCitizenId13Digits, setUseCitizenId13Digits] = useState(true);
   const [removeDatesAndPhones, setRemoveDatesAndPhones] = useState(true);
   const [removeNoiseWords, setRemoveNoiseWords] = useState(true);
   const [keepPrefixInName, setKeepPrefixInName] = useState(true);
@@ -180,8 +180,12 @@ export const SmartStudentPasteModal: React.FC<SmartStudentPasteModalProps> = ({
       let detectedClassroomName: string | null = null;
 
       for (const t of tokens) {
-        // Filter out 13-digit Citizen ID (e.g. 1509901234567 or 1-5099-01234-56-7)
-        if (removeIdCard13Digits && (/^\d{13}$/.test(t) || /^\d{1}-\d{4}-\d{5}-\d{2}-\d{1}$/.test(t))) {
+        // Extract 13-digit Citizen ID (e.g. 1509901234567 or 1-5099-01234-56-7) as student code
+        const digitsOnly = t.replace(/\D/g, '');
+        if (digitsOnly.length === 13) {
+          if (useCitizenId13Digits && !detectedCode) {
+            detectedCode = digitsOnly;
+          }
           continue;
         }
 
@@ -352,7 +356,7 @@ export const SmartStudentPasteModal: React.FC<SmartStudentPasteModalProps> = ({
     autoDetectNo,
     autoDetectCode,
     autoDetectGender,
-    removeIdCard13Digits,
+    useCitizenId13Digits,
     removeDatesAndPhones,
     removeNoiseWords,
     keepPrefixInName,
@@ -588,21 +592,21 @@ export const SmartStudentPasteModal: React.FC<SmartStudentPasteModalProps> = ({
               {/* Filter 1: 13-digit ID card */}
               <label
                 className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
-                  removeIdCard13Digits
+                  useCitizenId13Digits
                     ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950'
                     : 'bg-slate-50 border-slate-200 text-slate-600'
                 }`}
               >
                 <input
                   type="checkbox"
-                  checked={removeIdCard13Digits}
-                  onChange={(e) => setRemoveIdCard13Digits(e.target.checked)}
+                  checked={useCitizenId13Digits}
+                  onChange={(e) => setUseCitizenId13Digits(e.target.checked)}
                   className="mt-0.5 accent-emerald-600 rounded"
                 />
                 <div className="text-xs">
-                  <div className="font-bold">ตัดเลข 13 หลัก</div>
+                  <div className="font-bold">ดึงเลขบัตร ปชช. 13 หลัก</div>
                   <div className="text-[11px] opacity-75">
-                    ลบเลขบัตรประชาชนที่ไม่ต้องการออก
+                    สกัดเลข 13 หลักเป็นรหัสประจำตัวทันที
                   </div>
                 </div>
               </label>
@@ -722,7 +726,7 @@ export const SmartStudentPasteModal: React.FC<SmartStudentPasteModalProps> = ({
                       </th>
                       <th className="py-2.5 px-3 w-14 text-center">เลขที่</th>
                       <th className="py-2.5 px-3">ชื่อ - นามสกุล (คัดกรองแล้ว)</th>
-                      <th className="py-2.5 px-3 text-center w-28">เลขประจำตัว</th>
+                      <th className="py-2.5 px-3 text-center w-36">เลขบัตร ปชช. (13 หลัก)</th>
                       <th className="py-2.5 px-3 text-center w-20">เพศ</th>
                       <th className="py-2.5 px-3 text-center w-24">ห้อง</th>
                       <th className="py-2.5 px-3 text-center w-16">ลบ</th>

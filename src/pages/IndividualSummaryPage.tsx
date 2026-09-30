@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Student, Subject, ScoreItem, Score, Term, User, Classroom } from '../types';
 import { getStudentFullReport } from '../utils/gradeCalculator';
+import { formatCitizenId } from '../utils/dmcParser';
 import { StudentProgressChart } from '../components/StudentProgressChart';
+import { storage } from '../services/storage';
+import { SchoolLogo } from '../components/SchoolLogo';
 import {
   Printer,
   ChevronLeft,
@@ -37,6 +40,7 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
   classroom,
   activeClassroom,
 }) => {
+  const schoolSettings = useMemo(() => storage.getSchoolSettings(), []);
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
     students[0]?.id || ''
   );
@@ -85,18 +89,21 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
         }`}
       >
         {/* Ministry / School Header */}
-        <div className="text-center pb-6 border-b-2 border-slate-800 space-y-1">
+        <div className="text-center pb-6 border-b-2 border-slate-800 space-y-1.5">
+          <div className="flex justify-center mb-1">
+            <SchoolLogo settings={schoolSettings} size="md" />
+          </div>
           <div className="text-xs font-bold tracking-wider text-slate-500 uppercase">
-            กระทรวงศึกษาธิการ • สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน
+            {schoolSettings.ministry || 'กระทรวงศึกษาธิการ • สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน'}
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-slate-900">
             แบบรายงานผลการพัฒนาคุณภาพผู้เรียนรายบุคคล (ปพ.5/ปพ.6)
           </h2>
           <div className="text-sm font-semibold text-slate-700">
-            {user.school_name || 'โรงเรียนประถมศึกษา'}
+            {schoolSettings.school_name || user.school_name || 'โรงเรียนประถมศึกษา'}
           </div>
           <div className="text-xs text-slate-600">
-            ปีการศึกษา {activeClassroom?.academic_year || '2569'} •{' '}
+            ปีการศึกษา {activeClassroom?.academic_year || schoolSettings.academic_year || '2569'} •{' '}
             {activeClassroom?.level ||
               `ระดับชั้นประถมศึกษาปีที่ ${classroom.replace('ป.', '')}`}{' '}
             (ห้อง {activeClassroom?.name || classroom})
@@ -111,10 +118,10 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
           </div>
           <div>
             <span className="text-slate-500 font-medium">
-              เลขประจำตัวนักเรียน:
+              เลขประจำตัวประชาชน:
             </span>
             <div className="font-bold text-slate-800 font-mono">
-              {stu.student_code}
+              {formatCitizenId(stu.student_code)}
             </div>
           </div>
           <div>

@@ -29,6 +29,7 @@ interface DashboardPageProps {
   onSelectClassroom: (classroom: Classroom) => void;
   onNavigateToGrading: () => void;
   onNavigateToSubjectSummary: () => void;
+  onNavigateToRemedial?: () => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -43,6 +44,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onSelectClassroom,
   onNavigateToGrading,
   onNavigateToSubjectSummary,
+  onNavigateToRemedial,
 }) => {
   const [showComparison, setShowComparison] = useState(false);
 
@@ -442,13 +444,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </p>
           </div>
 
-          <button
-            onClick={onNavigateToGrading}
-            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
-          >
-            <span>ไปที่หน้ากรอกคะแนน</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onNavigateToRemedial && (
+              <button
+                onClick={onNavigateToRemedial}
+                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <span>บันทึกสอนซ่อมเสริม & สอบแก้ตัว</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={onNavigateToGrading}
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+            >
+              <span>ไปที่หน้ากรอกคะแนน</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {studentsNeedingAttention.length > 0 ? (

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Student, Subject, Term, ScoreItem, Score, Classroom } from './types';
+import { User, Student, Subject, Term, ScoreItem, Score, Classroom, SchoolSettings } from './types';
 import { storage } from './services/storage';
 import { Navbar } from './components/Navbar';
 import { Sidebar, NavTab } from './components/Sidebar';
@@ -19,14 +19,17 @@ import { IndividualSummaryPage } from './pages/IndividualSummaryPage';
 import { Pp5BookPage } from './pages/Pp5BookPage';
 import { StudentIDCardPage } from './pages/StudentIDCardPage';
 import { CertificatePage } from './pages/CertificatePage';
+import { RemedialTrackingPage } from './pages/RemedialTrackingPage';
 import { NotificationSettingsPage } from './pages/NotificationSettingsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BackupPage } from './pages/BackupPage';
 import { GoogleSheetsSyncPage } from './pages/GoogleSheetsSyncPage';
 import { StudentPortalPage } from './pages/StudentPortalPage';
+import { SchoolSettingsPage } from './pages/SchoolSettingsPage';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => storage.getCurrentUser());
+  const [schoolSettings, setSchoolSettings] = useState<SchoolSettings>(() => storage.getSchoolSettings());
   const [activeTab, setActiveTab] = useState<NavTab>('score-entry');
   const [portalStudent, setPortalStudent] = useState<Student | null>(null);
 
@@ -66,6 +69,7 @@ export default function App() {
     setAllScoreItems(storage.getScoreItems());
     setAllScores(storage.getScores());
     setCurrentUser(storage.getCurrentUser());
+    setSchoolSettings(storage.getSchoolSettings());
   }, []);
 
   useEffect(() => {
@@ -159,6 +163,7 @@ export default function App() {
       {/* Top Navbar with Multi-Classroom Dropdown */}
       <Navbar
         user={currentUser}
+        schoolSettings={schoolSettings}
         currentTerm={currentTerm}
         terms={terms}
         onSelectTerm={setCurrentTerm}
@@ -167,6 +172,7 @@ export default function App() {
         onSelectClassroom={handleSelectClassroom}
         onOpenClassroomManager={() => setIsClassroomModalOpen(true)}
         onOpenStudentPortal={() => setActiveTab('student-portal')}
+        onOpenSchoolSettings={() => setActiveTab('school-settings')}
         onLogout={handleLogout}
         onResetData={handleResetData}
       />
@@ -196,6 +202,7 @@ export default function App() {
               onSelectTerm={setCurrentTerm}
               onNavigateToSheets={() => setActiveTab('google-sheets')}
               onNavigateToNotifications={() => setActiveTab('notifications')}
+              onNavigateToRemedial={() => setActiveTab('remedial')}
               classroomName={classroomName}
               user={currentUser || undefined}
             />
@@ -214,6 +221,7 @@ export default function App() {
               onSelectClassroom={handleSelectClassroom}
               onNavigateToGrading={() => setActiveTab('score-entry')}
               onNavigateToSubjectSummary={() => setActiveTab('subject-summary')}
+              onNavigateToRemedial={() => setActiveTab('remedial')}
             />
           )}
 
@@ -263,6 +271,21 @@ export default function App() {
               activeClassroom={activeClassroom}
               user={currentUser}
               onViewStudentPortal={(stu) => setPortalStudent(stu)}
+            />
+          )}
+
+          {activeTab === 'remedial' && (
+            <RemedialTrackingPage
+              students={students}
+              subjects={subjects}
+              terms={terms}
+              allScoreItems={allScoreItems}
+              allScores={allScores}
+              classroom={classroomName}
+              activeClassroom={activeClassroom}
+              classrooms={classrooms}
+              user={currentUser}
+              onScoresUpdated={reloadData}
             />
           )}
 
@@ -350,6 +373,13 @@ export default function App() {
               classrooms={classrooms}
               user={currentUser}
               onBackToTeacherApp={() => setActiveTab('score-entry')}
+            />
+          )}
+
+          {activeTab === 'school-settings' && (
+            <SchoolSettingsPage
+              user={currentUser}
+              onSettingsUpdated={reloadData}
             />
           )}
 

@@ -49,6 +49,7 @@ interface ScoreEntryPageProps {
   onSelectTerm: (term: Term) => void;
   onNavigateToSheets?: () => void;
   onNavigateToNotifications?: () => void;
+  onNavigateToRemedial?: () => void;
   classroomName?: string;
   user?: User;
 }
@@ -64,6 +65,7 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   onSelectTerm,
   onNavigateToSheets,
   onNavigateToNotifications,
+  onNavigateToRemedial,
   classroomName,
   user,
 }) => {
@@ -604,6 +606,18 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
               <span>นำเข้า/ส่งออก CSV</span>
             </button>
+
+            {onNavigateToRemedial && (
+              <button
+                type="button"
+                onClick={onNavigateToRemedial}
+                className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-semibold text-xs sm:text-sm shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
+                title="จัดการสอนซ่อมเสริมและสอบแก้ตัว"
+              >
+                <RotateCcw className="w-4 h-4 text-rose-600" />
+                <span>สอนซ่อมเสริม & แก้ตัว</span>
+              </button>
+            )}
 
             {onNavigateToSheets && (
               <button
@@ -1297,9 +1311,29 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
               </div>
             )}
 
+            {/* Notice about LINE Notify and Direct Share */}
+            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>LINE Notify ปิดบริการแล้ว แนะนำกดปุ่ม <strong>"แชร์เข้า LINE ทันที"</strong> ส่งเข้ากลุ่มผู้ปกครองได้ฟรีโดยไม่ต้องใช้ Token</span>
+              </div>
+              {onNavigateToNotifications && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNotifyModal(false);
+                    onNavigateToNotifications();
+                  }}
+                  className="underline text-amber-800 font-bold whitespace-nowrap cursor-pointer hover:text-amber-950"
+                >
+                  ดูช่องทางอื่น
+                </button>
+              )}
+            </div>
+
             {/* Modal Actions */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handleCopyModalText}
@@ -1313,10 +1347,11 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                   href={lineNotifyService.getLineShareUrl(modalMessage)}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-2 bg-[#06C755]/10 hover:bg-[#06C755]/20 text-[#05963F] border border-[#06C755]/30 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors w-full sm:w-auto"
+                  className="px-3.5 py-2 bg-[#06C755] hover:bg-[#05963F] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs w-full sm:w-auto"
+                  title="เปิดแอป LINE แล้วเลือกกลุ่มผู้ปกครองเพื่อส่งข้อความทันที"
                 >
                   <Share2 className="w-3.5 h-3.5" />
-                  <span>แชร์ลง LINE</span>
+                  <span>แชร์เข้า LINE ทันที (ไม่ต้องใช้ Token)</span>
                 </a>
               </div>
 
@@ -1331,7 +1366,7 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                     className="px-3 py-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer"
                   >
                     <Settings className="w-3.5 h-3.5" />
-                    <span>ตั้งค่า Token</span>
+                    <span>ตั้งค่าช่องทาง</span>
                   </button>
                 )}
 
@@ -1339,14 +1374,15 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                   type="button"
                   onClick={handleSendNotification}
                   disabled={isSendingNotify}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 w-full sm:w-auto"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs sm:text-sm shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 w-full sm:w-auto"
+                  title="ส่งผ่านช่องทางที่ตั้งค่าไว้ (Telegram, Discord, LINE OA, หรือ Webhook)"
                 >
                   {isSendingNotify ? (
                     <RotateCcw className="w-4 h-4 animate-spin" />
                   ) : (
                     <Send className="w-4 h-4" />
                   )}
-                  <span>{isSendingNotify ? 'กำลังส่ง...' : 'ส่ง LINE Notify ทันที'}</span>
+                  <span>{isSendingNotify ? 'กำลังส่ง...' : 'ส่งแจ้งเตือนอัตโนมัติ'}</span>
                 </button>
               </div>
             </div>

@@ -7,13 +7,17 @@ import {
   Term,
   Classroom,
   User,
+  RemedialRecord,
 } from '../types';
+import { storage } from '../services/storage';
 import {
   getStudentFullReport,
   getStudentTermScore,
   calculateGrade,
 } from '../utils/gradeCalculator';
+import { formatCitizenId, cleanCitizenId } from '../utils/dmcParser';
 import { StudentProgressChart } from '../components/StudentProgressChart';
+import { SchoolLogo } from '../components/SchoolLogo';
 import {
   Search,
   School,
@@ -60,6 +64,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
   user,
   onBackToTeacherApp,
 }) => {
+  const schoolSettings = useMemo(() => storage.getSchoolSettings(), []);
   const [studentCodeInput, setStudentCodeInput] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
   const [searchError, setSearchError] = useState('');
@@ -80,15 +85,16 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
     setSearchError('');
 
     const query = studentCodeInput.trim().toLowerCase();
+    const cleanQuery = cleanCitizenId(query);
     if (!query) {
-      setSearchError('กรุณากรอกรหัสประจำตัวนักเรียน');
+      setSearchError('กรุณากรอกเลขประจำตัวประชาชน หรือชื่อนักเรียน');
       return;
     }
 
     const found = allStudents.find(
       (s) =>
+        (s.student_code && cleanCitizenId(s.student_code) === cleanQuery) ||
         (s.student_code && s.student_code.toLowerCase() === query) ||
-        s.student_code === query.padStart(5, '0') ||
         s.name.toLowerCase().includes(query)
     );
 
@@ -97,7 +103,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
       setStudentCodeInput('');
       setSearchError('');
     } else {
-      setSearchError(`ไม่พบข้อมูลนักเรียนสำหรับรหัส "${studentCodeInput}" กรุณาตรวจสอบรหัสอีกครั้ง`);
+      setSearchError(`ไม่พบข้อมูลนักเรียนสำหรับ "${studentCodeInput}" กรุณาตรวจสอบเลขบัตรประชาชน 13 หลัก หรือชื่อนักเรียนอีกครั้ง`);
     }
   };
 
@@ -151,6 +157,12 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
       terms
     );
   }, [selectedStudent, subjects, allScoreItems, allScores, terms]);
+
+  // Remedial records for the active student
+  const studentRemedialRecords = useMemo<RemedialRecord[]>(() => {
+    if (!selectedStudent) return [];
+    return storage.getAllRemedialRecords().filter((r: RemedialRecord) => r.student_id === selectedStudent.id);
+  }, [selectedStudent]);
 
   // Identify any missing work or absent statuses
   const statusSummary = useMemo(() => {
@@ -210,8 +222,8 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs no-print">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-sky-600 text-white flex items-center justify-center shadow-xs">
-              <GraduationCap className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 text-indigo-700 flex items-center justify-center shadow-xs p-1">
+              <SchoolLogo settings={schoolSettings} size="md" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -219,8 +231,8 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                   ระบบบริการนักเรียน
                 </span>
                 <span className="text-xs text-slate-400 hidden sm:inline">•</span>
-                <span className="text-xs text-slate-500 hidden sm:inline">
-                  {user?.school_name || 'โรงเรียนบ้านป่าส่าน'}
+                <span className="text-xs text-slate-500 hidden sm:inline font-semibold">
+                  {schoolSettings.school_name || user?.school_name || 'โรงเรียนบ้านป่าส่าน'}
                 </span>
               </div>
               <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
@@ -303,7 +315,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                           setStudentCodeInput(e.target.value);
                           if (searchError) setSearchError('');
                         }}
-                        placeholder="กรอกรหัสนักเรียน เช่น 50101 หรือ 60101"
+                        placeholder="กรอกเลขประจำตัวประชาชน 13 หลัก เช่น 1509901010011 หรือชื่อนักเรียน"
                         autoFocus
                         className="w-full pl-11 pr-4 py-3.5 text-base sm:text-lg bg-slate-50 border-2 border-indigo-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-600 font-semibold text-slate-800 transition-all placeholder:text-slate-400 placeholder:text-sm"
                       />
@@ -329,7 +341,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                 <div className="pt-6 border-t border-slate-100 text-left">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mb-3">
                     <Sparkles className="w-4 h-4 text-amber-500" />
-                    <span>กดรหัสตัวอย่างเพื่อทดสอบระบบได้ทันที:</span>
+                    <span>กดเลขประจำตัวประชาชนตัวอย่างเพื่อทดสอบระบบได้ทันที:</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {sampleStudents.map((s) => (
@@ -341,7 +353,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                       >
                         <div className="truncate">
                           <span className="font-mono font-bold text-indigo-700 bg-indigo-100/70 px-1.5 py-0.5 rounded mr-2">
-                            {s.student_code}
+                            {formatCitizenId(s.student_code)}
                           </span>
                           <span className="font-medium text-slate-700 group-hover:text-indigo-900">
                             {s.name}
@@ -380,8 +392,8 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                      <span className="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[11px] sm:text-xs font-bold text-white border border-white/25">
-                        รหัสนักเรียน: {selectedStudent.student_code}
+                      <span className="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[11px] sm:text-xs font-bold text-white border border-white/25 font-mono">
+                        เลขประจำตัวประชาชน: {formatCitizenId(selectedStudent.student_code)}
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full bg-indigo-400/40 text-[11px] sm:text-xs font-semibold text-indigo-100">
                         เลขที่ {selectedStudent.student_no}
@@ -432,6 +444,73 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Remedial & Re-exam Tracking Notice for Student & Parent */}
+            {studentRemedialRecords.length > 0 && (
+              <div className="bg-white rounded-2xl p-4 sm:p-5 border border-amber-200 shadow-xs space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                    <span className="p-1 rounded-lg bg-amber-100 text-amber-700">📖</span>
+                    <span>ข้อมูลการสอนซ่อมเสริมและผลการสอบแก้ตัว</span>
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium">
+                    พบ {studentRemedialRecords.length} รายการ
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {studentRemedialRecords.map((rec) => (
+                    <div
+                      key={rec.id}
+                      className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                        rec.status === 'passed'
+                          ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
+                          : rec.status === 're_exam_scheduled'
+                          ? 'bg-indigo-50/60 border-indigo-200 text-indigo-950'
+                          : 'bg-amber-50/60 border-amber-200 text-amber-950'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-sm">{rec.subject_name}</div>
+                          <div className="text-slate-600 font-medium">{rec.score_item_name}</div>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[11px] font-bold shrink-0 border ${
+                            rec.status === 'passed'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : rec.status === 're_exam_scheduled'
+                              ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                              : 'bg-amber-100 text-amber-800 border-amber-300'
+                          }`}
+                        >
+                          {rec.status === 'passed'
+                            ? 'สอบแก้ตัวผ่านแล้ว ✅'
+                            : rec.status === 're_exam_scheduled'
+                            ? 'นัดสอบแก้ตัว 📅'
+                            : 'กำลังสอนซ่อมเสริม ⏳'}
+                        </span>
+                      </div>
+
+                      <div className="text-slate-600 space-y-0.5">
+                        <div>คะแนนเดิม: <span className="font-bold text-rose-600">{rec.original_score}</span> / {rec.max_score}</div>
+                        {rec.status === 'passed' && (
+                          <div className="text-emerald-800 font-semibold">
+                            คะแนนสอบแก้ตัว: <span className="font-bold">{rec.re_exam_score}</span> / {rec.max_score} (บันทึก ปพ.5: {rec.final_recorded_score || rec.target_passing_score})
+                          </div>
+                        )}
+                        {rec.re_exam_date && (
+                          <div>วันที่สอบแก้ตัว: <span className="font-medium text-slate-700">{rec.re_exam_date}</span></div>
+                        )}
+                        {rec.teacher_notes && (
+                          <div className="italic text-slate-500">บันทึกครู: "{rec.teacher_notes}"</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* KPI Metric Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -935,18 +1014,21 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
 
             {/* PRINT-ONLY SECTION (Only visible during printing) */}
             <div className="hidden print:block text-black bg-white p-4">
-              <div className="text-center pb-4 border-b-2 border-slate-900 mb-4">
+              <div className="text-center pb-4 border-b-2 border-slate-900 mb-4 space-y-1">
+                <div className="flex justify-center mb-1">
+                  <SchoolLogo settings={schoolSettings} size="md" />
+                </div>
                 <div className="text-xs font-bold uppercase">
-                  กระทรวงศึกษาธิการ • สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน
+                  {schoolSettings.ministry || 'กระทรวงศึกษาธิการ • สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน'}
                 </div>
                 <h2 className="text-lg font-bold">
                   ใบแจ้งผลการเรียนและคะแนนสะสมรายบุคคล
                 </h2>
-                <div className="text-sm">
-                  {user?.school_name || 'โรงเรียนประถมศึกษา'}
+                <div className="text-sm font-bold">
+                  {schoolSettings.school_name || user?.school_name || 'โรงเรียนประถมศึกษา'}
                 </div>
                 <div className="text-xs text-slate-600">
-                  ปีการศึกษา {studentClassroom?.academic_year || '2569'} • {studentClassroom?.level} (ห้อง {studentClassroom?.name})
+                  ปีการศึกษา {studentClassroom?.academic_year || schoolSettings.academic_year || '2569'} • {studentClassroom?.level} (ห้อง {studentClassroom?.name})
                 </div>
               </div>
 

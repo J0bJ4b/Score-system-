@@ -165,6 +165,47 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "type", "title", "message", "recipient_group", "status", "timestamp", "ownerId"]
+    },
+    "RemedialRecord": {
+      "title": "RemedialRecord",
+      "description": "Remedial instruction and re-examination tracking records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "student_id": { "type": "string", "maxLength": 128 },
+        "student_name": { "type": "string", "maxLength": 150 },
+        "student_code": { "type": "string", "maxLength": 30 },
+        "student_no": { "type": "number" },
+        "classroom_id": { "type": "string", "maxLength": 128 },
+        "classroom_name": { "type": "string", "maxLength": 100 },
+        "subject_id": { "type": "string", "maxLength": 128 },
+        "subject_name": { "type": "string", "maxLength": 150 },
+        "subject_code": { "type": "string", "maxLength": 30 },
+        "term_id": { "type": "string", "maxLength": 128 },
+        "term_name": { "type": "string", "maxLength": 100 },
+        "score_item_id": { "type": "string", "maxLength": 128 },
+        "score_item_name": { "type": "string", "maxLength": 150 },
+        "indicator_or_standard": { "type": "string", "maxLength": 200 },
+        "original_score": { "type": "number" },
+        "max_score": { "type": "number" },
+        "target_passing_score": { "type": "number" },
+        "learning_defect": { "type": "string", "maxLength": 300 },
+        "remedial_method": { "type": "string", "enum": ["individual_tutoring", "remedial_worksheet", "peer_tutoring", "digital_learning", "project_assignment", "other"] },
+        "remedial_method_detail": { "type": "string", "maxLength": 500 },
+        "remedial_date": { "type": "string", "maxLength": 50 },
+        "remedial_duration_hours": { "type": "number" },
+        "re_exam_date": { "type": "string", "maxLength": 50 },
+        "re_exam_score": { "type": "number" },
+        "final_recorded_score": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "in_progress", "re_exam_scheduled", "passed", "failed"] },
+        "teacher_notes": { "type": "string", "maxLength": 500 },
+        "remedial_round": { "type": "number" },
+        "synced_to_gradebook": { "type": "boolean" },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "student_id", "student_name", "subject_id", "subject_name", "term_id", "original_score", "max_score", "status", "ownerId"]
     }
   },
   "firestore": {
@@ -203,6 +244,10 @@
     "/notification_logs/{logId}": {
       "schema": "NotificationLog",
       "description": "Logs of parent messages and LINE notifications"
+    },
+    "/remedial_records/{recordId}": {
+      "schema": "RemedialRecord",
+      "description": "Records of remedial teaching and re-examinations"
     }
   }
 }

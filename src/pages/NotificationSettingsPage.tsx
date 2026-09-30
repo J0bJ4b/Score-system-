@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   LineNotifySettings,
+  NotificationChannel,
   NotificationLog,
   NotificationType,
   Student,
@@ -36,6 +37,13 @@ import {
   EyeOff,
   Share2,
   AlertTriangle,
+  Radio,
+  Globe,
+  Info,
+  ChevronRight,
+  Zap,
+  ArrowRight,
+  MessageCircle,
 } from 'lucide-react';
 
 interface NotificationSettingsPageProps {
@@ -66,6 +74,9 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
   const [settings, setSettings] = useState<LineNotifySettings>(() => storage.getLineNotifySettings());
   const [showToken, setShowToken] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Active channel
+  const activeChannel: NotificationChannel = settings.channel || 'line_share';
 
   // Test & Sending State
   const [isTesting, setIsTesting] = useState(false);
@@ -99,27 +110,62 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
     setTimeout(() => setSavedSuccess(false), 3000);
   };
 
+  // Switch Channel Helper
+  const handleSelectChannel = (channel: NotificationChannel) => {
+    const updated = { ...settings, channel };
+    setSettings(updated);
+    storage.saveLineNotifySettings(updated);
+    setTestResult(null);
+  };
+
   // Test Connection
   const handleTestConnection = async () => {
-    if (!settings.token.trim()) {
+    setIsTesting(true);
+    setTestResult(null);
+
+    const testMsg = `\n🔔 [ทดสอบการเชื่อมต่อระบบแจ้งเตือนสำเร็จ]\n🏫 ${schoolDisplayName}\n👥 เป้าหมาย: ${settings.target_group_name || 'กลุ่มผู้ปกครอง'}\n⏰ เวลา: ${new Date().toLocaleTimeString('th-TH')} น.\n✨ ระบบพร้อมส่งการแจ้งเตือนผลการเรียนแล้วครับ/ค่ะ`;
+
+    if (activeChannel === 'line_share') {
+      setIsTesting(false);
+      const shareUrl = lineNotifyService.getLineShareUrl(testMsg);
+      // Open in window or simulate
+      window.open(shareUrl, '_blank');
+      setTestResult({
+        success: true,
+        message: 'เปิดหน้าต่างแชร์เข้า LINE เรียบร้อยแล้ว! (คุณครูสามารถเลือกส่งเข้ากลุ่มผู้ปกครองหรือบันทึกใน Keep ได้ทันที)',
+        simulated: false,
+      });
+      storage.addNotificationLog({
+        type: 'test_ping',
+        title: 'ทดสอบส่งข้อความผ่าน LINE Direct Share',
+        message: testMsg,
+        recipient_group: settings.target_group_name || 'กลุ่มผู้ปกครอง',
+        classroom: classroomDisplayName,
+        subject_name: activeSubject?.name,
+        term_name: activeTerm?.name,
+        status: 'success',
+        timestamp: new Date().toISOString(),
+        student_count: students.length,
+      });
+      setLogs(storage.getNotificationLogs());
+      return;
+    }
+
+    if (activeChannel === 'line_notify') {
+      setIsTesting(false);
       setTestResult({
         success: false,
-        message: 'กรุณากรอก LINE Notify Token ก่อนกดทดสอบ',
+        message: '⚠️ ระบบ LINE Notify ปิดให้บริการทั่วโลกแล้ว (ตั้งแต่ 31 มี.ค. 2025) กรุณาเปลี่ยนไปใช้ "แชร์เข้า LINE โดยตรง" หรือ "Telegram" แทน',
       });
       return;
     }
 
-    setIsTesting(true);
-    setTestResult(null);
-
-    const testMsg = `\n🔔 [ทดสอบการเชื่อมต่อ LINE Notify สำเร็จ]\n🏫 ${schoolDisplayName}\n👥 เป้าหมาย: ${settings.target_group_name || 'กลุ่มผู้ปกครอง'}\n⏰ เวลา: ${new Date().toLocaleTimeString('th-TH')} น.\n✨ ระบบพร้อมส่งการแจ้งเตือนผลการเรียนแล้วครับ/ค่ะ`;
-
     const res = await lineNotifyService.sendMessage(testMsg, {
       type: 'test_ping',
-      title: 'ทดสอบการเชื่อมต่อ LINE Notify',
+      title: `ทดสอบการเชื่อมต่อ (${activeChannel.toUpperCase()})`,
       classroom: classroomDisplayName,
       studentCount: students.length,
-      tokenOverride: settings.token,
+      channelOverride: activeChannel,
     });
 
     setIsTesting(false);
@@ -137,7 +183,6 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
     const items = allScoreItems.filter(
       (i) => i.subject_id === activeSubject.id && i.term_id === activeTerm.id
     );
-    const itemIds = items.map((i) => i.id);
 
     let recordedCount = 0;
     let totalScoreObtained = 0;
@@ -282,12 +327,6 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
 
   // Execute Broadcast
   const handleSendBroadcast = async () => {
-    if (!settings.token.trim()) {
-      alert('กรุณากรอกและบันทึก LINE Notify Token ในแท็บ "ตั้งค่าการเชื่อมต่อ" ก่อนส่ง');
-      setActiveSubTab('settings');
-      return;
-    }
-
     setIsBroadcasting(true);
     setBroadcastResult(null);
 
@@ -296,9 +335,34 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
       midterm_final: `ประกาศผลสอบกลางภาค/ปลายภาควิชา${activeSubject.name}`,
       low_score_alert: `แจ้งเตือนติดตามคะแนน/งานค้างส่งวิชา${activeSubject.name}`,
       missing_work_alert: `แจ้งเตือนนักเรียนติด ร/มส วิชา${activeSubject.name}`,
+      remedial_scheduled: `แจ้งนัดหมายการสอนซ่อมเสริมวิชา${activeSubject.name}`,
+      remedial_passed: `แจ้งผลการสอบแก้ตัวผ่านเกณฑ์วิชา${activeSubject.name}`,
       custom_broadcast: customTitle || 'ประกาศข่าวสารจากครูประจำชั้น',
       test_ping: 'ทดสอบการส่งข้อความ',
     };
+
+    if (activeChannel === 'line_share') {
+      window.open(lineNotifyService.getLineShareUrl(livePreviewText), '_blank');
+      storage.addNotificationLog({
+        type: broadcastType,
+        title: titleMap[broadcastType],
+        message: livePreviewText,
+        recipient_group: settings.target_group_name || 'กลุ่มผู้ปกครอง',
+        classroom: classroomDisplayName,
+        subject_name: activeSubject.name,
+        term_name: activeTerm.name,
+        status: 'success',
+        timestamp: new Date().toISOString(),
+        student_count: students.length,
+      });
+      setIsBroadcasting(false);
+      setBroadcastResult({
+        success: true,
+        message: 'เปิดหน้าต่างแชร์เข้าแอป LINE เรียบร้อยแล้ว! (เลือกกลุ่มเพื่อส่งต่อได้ทันที)',
+      });
+      setLogs(storage.getNotificationLogs());
+      return;
+    }
 
     const res = await lineNotifyService.sendMessage(livePreviewText, {
       type: broadcastType,
@@ -307,6 +371,7 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
       subjectName: activeSubject.name,
       termName: activeTerm.name,
       studentCount: students.length,
+      channelOverride: activeChannel,
     });
 
     setIsBroadcasting(false);
@@ -325,24 +390,75 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 rounded-3xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 font-['Sarabun',sans-serif]">
+      {/* ⚠️ Prominent Notice Banner about LINE Notify Sunset & Alternatives */}
+      <div className="bg-linear-to-r from-amber-500 via-orange-500 to-rose-600 rounded-3xl p-5 sm:p-6 text-white shadow-md relative overflow-hidden border border-amber-300">
+        <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-60 h-60 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5 max-w-3xl">
+            <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-black/20 text-white text-xs font-bold backdrop-blur-xs">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-200" />
+              <span>บริการ LINE Notify ยุติการให้บริการทั่วโลกแล้ว (31 มี.ค. 2025)</span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+              ระบบได้เพิ่มช่องทางทดแทนที่ใช้งานได้จริง 100% ฟรี & ไม่จำกัด
+            </h2>
+            <p className="text-amber-50 text-xs sm:text-sm leading-relaxed">
+              คุณครูสามารถใช้ <strong>"แชร์เข้ากลุ่ม LINE โดยตรง (LINE Direct Share)"</strong> ได้ทันทีโดยไม่ต้องใช้ Token หรือจะเชื่อมต่อ <strong>"Telegram Bot ฟรี 100%"</strong> เพื่อแจ้งเตือนอัตโนมัติเข้ากลุ่มผู้ปกครองได้ตลอดไป
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleSelectChannel('line_share')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ${
+                activeChannel === 'line_share'
+                  ? 'bg-white text-amber-900 ring-2 ring-white'
+                  : 'bg-black/20 text-white hover:bg-black/30'
+              }`}
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>ใช้ LINE แชร์ตรง (แนะนำ)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectChannel('telegram')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ${
+                activeChannel === 'telegram'
+                  ? 'bg-white text-sky-900 ring-2 ring-white'
+                  : 'bg-black/20 text-white hover:bg-black/30'
+              }`}
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>ใช้ Telegram Bot</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Header Banner */}
+      <div className="bg-linear-to-r from-emerald-600 via-teal-600 to-indigo-700 rounded-3xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden">
         <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-emerald-100 text-xs font-semibold mb-3 border border-white/20">
               <MessageSquare className="w-3.5 h-3.5 text-emerald-300" />
-              <span>โมดูลการสื่อสารและแจ้งเตือนผู้ปกครอง (LINE Notify API)</span>
+              <span>ศูนย์การแจ้งเตือนและการสื่อสารผู้ปกครองหลายช่องทาง (Multi-Channel Notification Hub)</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-3">
-              <span>เชื่อมต่อ LINE Notify</span>
+              <span>ระบบแจ้งเตือนผลการเรียน</span>
               <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-400 text-emerald-950 font-mono font-bold">
-                v2.0
+                {activeChannel === 'line_share' && 'LINE Direct'}
+                {activeChannel === 'telegram' && 'Telegram API'}
+                {activeChannel === 'line_oa' && 'LINE OA'}
+                {activeChannel === 'discord' && 'Discord'}
+                {activeChannel === 'webhook' && 'Webhook'}
+                {activeChannel === 'line_notify' && 'LINE Notify'}
               </span>
             </h1>
             <p className="text-emerald-100/90 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
-              ส่งการแจ้งเตือนผลสอบกลางภาค/ปลายภาค บันทึกคะแนนเก็บ และแจ้งเตือนติดตามงานค้างส่ง (ติด "ร" หรือ "มส") ไปยังกลุ่ม LINE ผู้ปกครองได้ทันที
+              ส่งการแจ้งเตือนผลสอบกลางภาค/ปลายภาค บันทึกคะแนนเก็บ และแจ้งเตือนติดตามงานค้างส่ง (ติด "ร" หรือ "มส") ไปยังกลุ่มผู้ปกครองได้แบบเรียลไทม์
             </p>
           </div>
 
@@ -356,10 +472,10 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
             </button>
             <button
               onClick={() => setActiveSubTab('guide')}
-              className="px-3.5 py-2.5 bg-white/15 hover:bg-white/25 text-white rounded-2xl font-semibold text-xs sm:text-sm backdrop-blur-sm border border-white/20 flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-3.5 py-2.5 bg-white/15 hover:bg-white/25 text-white rounded-2xl font-semibold text-xs sm:text-sm backdrop-blur-xs border border-white/20 flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <HelpCircle className="w-4 h-4 text-emerald-200" />
-              <span>วิธีขอ Token</span>
+              <span>คู่มือเปรียบเทียบช่องทาง</span>
             </button>
           </div>
         </div>
@@ -376,7 +492,7 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
           }`}
         >
           <Key className="w-4 h-4" />
-          <span>การตั้งค่า API Token & สิทธิ์</span>
+          <span>ตั้งค่าช่องทางการแจ้งเตือน</span>
         </button>
 
         <button
@@ -415,443 +531,755 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
           }`}
         >
           <HelpCircle className="w-4 h-4" />
-          <span>คู่มือติดตั้ง LINE Notify</span>
+          <span>คู่มือทางเลือกทดแทน LINE Notify</span>
         </button>
       </div>
 
-      {/* Tab 1: Settings & Token Management */}
+      {/* Tab 1: Settings & Multi-Channel Management */}
       {activeSubTab === 'settings' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Form */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-2xl p-5 sm:p-7 shadow-xs border border-slate-200">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+        <div className="space-y-6">
+          {/* Channel Selector Cards */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-emerald-600" />
+                  <span>เลือกช่องทางที่ต้องการส่งการแจ้งเตือน</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  คลิกเลือกช่องทางที่โรงเรียนหรือชั้นเรียนของท่านสะดวกใช้งานที่สุด
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {/* Option 1: LINE Direct Share */}
+              <div
+                onClick={() => handleSelectChannel('line_share')}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                  activeChannel === 'line_share'
+                    ? 'border-emerald-500 bg-emerald-50/50 shadow-sm ring-2 ring-emerald-200'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
+                }`}
+              >
                 <div>
-                  <h2 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <Key className="w-5 h-5 text-emerald-600" />
-                    <span>จัดการ LINE Notify API Token</span>
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    นำ Token จากระบบ LINE Notify ของท่านมากรอกเพื่อใช้ส่งข้อความไปยังกลุ่มไลน์
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="w-9 h-9 rounded-xl bg-[#06C755] text-white flex items-center justify-center font-bold shadow-xs">
+                      <Share2 className="w-5 h-5" />
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      แนะนำมากที่สุด ⭐ ฟรี 100%
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-sm">แชร์เข้ากลุ่ม LINE โดยตรง</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    ไม่ต้องใช้ Token ไม่ต้องสร้างบอท กดปุ่มเดียวเปิดแอป LINE เลือกส่งเข้ากลุ่มผู้ปกครองหรือแชทนักเรียนได้ทันที
                   </p>
                 </div>
-                <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 ${
-                    settings.token.trim()
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-amber-100 text-amber-800'
-                  }`}
-                >
-                  {settings.token.trim() ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      พร้อมใช้งาน
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      ยังไม่ระบุ Token
-                    </>
-                  )}
-                </span>
+                <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-semibold flex items-center justify-between text-emerald-700">
+                  <span>ไม่ต้องตั้งค่าใดๆ</span>
+                  {activeChannel === 'line_share' && <span className="font-bold text-emerald-600">✓ กำลังใช้งาน</span>}
+                </div>
               </div>
 
-              <form onSubmit={handleSaveSettings} className="space-y-5">
-                {/* API Token Input */}
+              {/* Option 2: Telegram Bot */}
+              <div
+                onClick={() => handleSelectChannel('telegram')}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                  activeChannel === 'telegram'
+                    ? 'border-sky-500 bg-sky-50/50 shadow-sm ring-2 ring-sky-200'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
+                }`}
+              >
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    LINE Notify Access Token <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showToken ? 'text' : 'password'}
-                      value={settings.token}
-                      onChange={(e) =>
-                        setSettings({ ...settings, token: e.target.value })
-                      }
-                      placeholder="วาง Token เช่น 4abcDefGhIjKLmnOpQRStuvWxyz123456789..."
-                      className="w-full pl-3 pr-20 py-2.5 text-xs sm:text-sm font-mono bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowToken(!showToken)}
-                      className="absolute right-2 top-2 px-2.5 py-1 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                    >
-                      {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      <span>{showToken ? 'ซ่อน' : 'แสดง'}</span>
-                    </button>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="w-9 h-9 rounded-xl bg-[#229ED9] text-white flex items-center justify-center font-bold shadow-xs">
+                      <Radio className="w-5 h-5" />
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200">
+                      อัตโนมัติ 🚀 ฟรีตลอดชีพ
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5">
-                    <span>Token จะถูกเก็บรักษาในเบราว์เซอร์อย่างปลอดภัย</span>
-                    <a
-                      href="https://notify-bot.line.me/my/"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-emerald-700 hover:underline inline-flex items-center gap-1 font-semibold"
-                    >
-                      <span>ขอ Token ที่ notify-bot.line.me</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
+                  <h4 className="font-bold text-slate-800 text-sm">Telegram Bot API</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    ส่งข้อความอัตโนมัติเข้ากลุ่ม ไม่จำกัดจำนวนข้อความ สร้างบอทง่ายใน 1 นาทีผ่าน @BotFather ไม่มีค่าบริการ
+                  </p>
                 </div>
-
-                {/* Target Group & School Signature */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      ชื่อกลุ่มผู้รับการแจ้งเตือน
-                    </label>
-                    <input
-                      type="text"
-                      value={settings.target_group_name}
-                      onChange={(e) =>
-                        setSettings({ ...settings, target_group_name: e.target.value })
-                      }
-                      placeholder="เช่น กลุ่มผู้ปกครอง ป.5/1"
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      ชื่อโรงเรียน / ลายเซ็นลงท้าย
-                    </label>
-                    <input
-                      type="text"
-                      value={settings.school_signature}
-                      onChange={(e) =>
-                        setSettings({ ...settings, school_signature: e.target.value })
-                      }
-                      placeholder="โรงเรียนบ้านป่าส่าน"
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium text-slate-800"
-                    />
-                  </div>
+                <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-semibold flex items-center justify-between text-sky-700">
+                  <span>ใช้ Bot Token & Chat ID</span>
+                  {activeChannel === 'telegram' && <span className="font-bold text-sky-600">✓ กำลังใช้งาน</span>}
                 </div>
+              </div>
 
-                {/* Triggers & Rules Checkboxes */}
-                <div className="pt-3 border-t border-slate-100">
-                  <label className="block text-xs font-bold text-slate-800 mb-3">
-                    เงื่อนไขและรูปแบบการแจ้งเตือน
-                  </label>
-                  <div className="space-y-3">
-                    <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.notify_on_score_saved}
-                        onChange={(e) =>
-                          setSettings({ ...settings, notify_on_score_saved: e.target.checked })
-                        }
-                        className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div>
-                        <div className="text-xs sm:text-sm font-bold text-slate-800">
-                          แจ้งเตือนเมื่อครูบันทึกผลการเรียนเสร็จสิ้นในหน้าบันทึกคะแนน
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          แสดงปุ่มส่งสรุปคะแนนอัตโนมัติไปยัง LINE ทันทีหลังกดบันทึกคะแนนรายวิชา
-                        </div>
-                      </div>
-                    </label>
-
-                    <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.notify_on_midterm_final}
-                        onChange={(e) =>
-                          setSettings({ ...settings, notify_on_midterm_final: e.target.checked })
-                        }
-                        className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div>
-                        <div className="text-xs sm:text-sm font-bold text-slate-800">
-                          แจ้งเตือนเมื่อครูประกาศคะแนนสอบกลางภาค / ปลายภาค
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          ส่งสถิติคะแนนเต็ม, คะแนนเฉลี่ย, คะแนนสูงสุด-ต่ำสุด เพื่อให้ผู้ปกครองทราบผลการประเมิน
-                        </div>
-                      </div>
-                    </label>
-
-                    <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.notify_on_missing_or_absent}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            notify_on_missing_or_absent: e.target.checked,
-                          })
-                        }
-                        className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div>
-                        <div className="text-xs sm:text-sm font-bold text-slate-800">
-                          แจ้งเตือนกรณีมีงานค้างส่ง หรือขาดสอบ (ติด "ร" หรือ "มส")
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          ระบุรายชื่อนักเรียนและรายการที่ยังไม่ส่ง เพื่อให้ผู้ปกครองช่วยติดตามดูแล
-                        </div>
-                      </div>
-                    </label>
-
-                    <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <div className="text-xs sm:text-sm font-bold text-slate-800">
-                          เกณฑ์คะแนนต่ำกว่าเกณฑ์สำหรับแจ้งเตือน
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          หากคะแนนเก็บต่ำกว่าเปอร์เซ็นต์นี้ จะแสดงในรายการที่ต้องติดตาม
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="10"
-                          max="90"
-                          step="5"
-                          value={settings.low_score_threshold_percent}
-                          onChange={(e) =>
-                            setSettings({
-                              ...settings,
-                              low_score_threshold_percent: parseInt(e.target.value) || 50,
-                            })
-                          }
-                          className="w-20 px-2.5 py-1.5 text-center text-sm font-bold bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                        />
-                        <span className="text-xs font-bold text-slate-600">% (เช่น 50%)</span>
-                      </div>
-                    </div>
+              {/* Option 3: LINE Official Account */}
+              <div
+                onClick={() => handleSelectChannel('line_oa')}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                  activeChannel === 'line_oa'
+                    ? 'border-emerald-500 bg-emerald-50/50 shadow-sm ring-2 ring-emerald-200'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="w-9 h-9 rounded-xl bg-[#00B900] text-white flex items-center justify-center font-bold shadow-xs">
+                      <MessageCircle className="w-5 h-5" />
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                      ทางการของ LINE 🏢
+                    </span>
                   </div>
+                  <h4 className="font-bold text-slate-800 text-sm">LINE Official Account (LINE OA)</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    ใช้ Messaging API ส่ง Broadcast ไปยังผู้ติดตาม LINE Official Account ของโรงเรียน
+                  </p>
                 </div>
-
-                {/* Save & Test Actions */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={handleTestConnection}
-                    disabled={isTesting}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {isTesting ? (
-                      <RotateCw className="w-4 h-4 animate-spin text-emerald-600" />
-                    ) : (
-                      <Send className="w-4 h-4 text-emerald-600" />
-                    )}
-                    <span>{isTesting ? 'กำลังทดสอบ...' : 'ทดสอบส่งข้อความไปยัง LINE'}</span>
-                  </button>
-
-                  <div className="flex items-center gap-2">
-                    {savedSuccess && (
-                      <span className="text-xs text-emerald-600 font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" />
-                        บันทึกการตั้งค่าแล้ว
-                      </span>
-                    )}
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-sm flex items-center gap-2 transition-all cursor-pointer"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>บันทึกการตั้งค่า</span>
-                    </button>
-                  </div>
+                <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-semibold flex items-center justify-between text-emerald-700">
+                  <span>ใช้ Channel Access Token</span>
+                  {activeChannel === 'line_oa' && <span className="font-bold text-emerald-600">✓ กำลังใช้งาน</span>}
                 </div>
+              </div>
 
-                {/* Test Result Box */}
-                {testResult && (
-                  <div
-                    className={`p-4 rounded-xl text-xs flex items-start gap-3 border ${
-                      testResult.success
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                        : 'bg-rose-50 border-rose-200 text-rose-900'
-                    }`}
-                  >
-                    {testResult.success ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                    )}
-                    <div>
-                      <div className="font-bold">
-                        {testResult.success ? 'ทดสอบเชื่อมต่อสำเร็จ!' : 'ทดสอบไม่สำเร็จ'}
-                      </div>
-                      <p className="mt-0.5 leading-relaxed">{testResult.message}</p>
-                      {testResult.simulated && (
-                        <p className="text-[11px] text-emerald-700 mt-1 font-medium">
-                          💡 หมายเหตุ: ระบบจำลองการส่งและบันทึกลงประวัติเรียบร้อยแล้ว (คุณครูสามารถแชร์ลงกลุ่ม LINE ได้โดยตรง)
-                        </p>
-                      )}
-                    </div>
+              {/* Option 4: Discord Webhook */}
+              <div
+                onClick={() => handleSelectChannel('discord')}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                  activeChannel === 'discord'
+                    ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-2 ring-indigo-200'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="w-9 h-9 rounded-xl bg-[#5865F2] text-white flex items-center justify-center font-bold shadow-xs">
+                      <MessageSquare className="w-5 h-5" />
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                      ฟรี 100% 🎮 ติดตั้งง่าย
+                    </span>
                   </div>
-                )}
-              </form>
+                  <h4 className="font-bold text-slate-800 text-sm">Discord Webhook</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    แจ้งเตือนเข้าห้อง Discord ของครูหรือชมรมผู้ปกครอง จัดรูปแบบสวยงาม แค่วาง Webhook URL
+                  </p>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-semibold flex items-center justify-between text-indigo-700">
+                  <span>ใช้ Discord Webhook URL</span>
+                  {activeChannel === 'discord' && <span className="font-bold text-indigo-600">✓ กำลังใช้งาน</span>}
+                </div>
+              </div>
+
+              {/* Option 5: Custom Webhook / Google Apps Script */}
+              <div
+                onClick={() => handleSelectChannel('webhook')}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                  activeChannel === 'webhook'
+                    ? 'border-purple-500 bg-purple-50/50 shadow-sm ring-2 ring-purple-200'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold shadow-xs">
+                      <Globe className="w-5 h-5" />
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                      ยืดหยุ่นสูง 🌐 เชื่อมต่อได้ทุกระบบ
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-sm">Custom Webhook / Google Apps Script</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    ส่งต่อข้อมูลไปยัง Google Apps Script เพื่อส่งอีเมล, SMS หรือระบบฐานข้อมูลของโรงเรียน
+                  </p>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-semibold flex items-center justify-between text-purple-700">
+                  <span>รองรับ HTTP POST JSON</span>
+                  {activeChannel === 'webhook' && <span className="font-bold text-purple-600">✓ กำลังใช้งาน</span>}
+                </div>
+              </div>
+
+              {/* Option 6: LINE Notify (Discontinued Status) */}
+              <div
+                onClick={() => handleSelectChannel('line_notify')}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between opacity-70 ${
+                  activeChannel === 'line_notify'
+                    ? 'border-rose-400 bg-rose-50/40 shadow-sm'
+                    : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="w-9 h-9 rounded-xl bg-slate-400 text-white flex items-center justify-center font-bold shadow-xs">
+                      <AlertTriangle className="w-5 h-5" />
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                      ปิดบริการแล้ว ❌ (มี.ค. 2025)
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-sm">LINE Notify เดิม</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    บริการนี้ปิดตัวอย่างเป็นทางการแล้ว แนะนำให้เปลี่ยนไปใช้ LINE Direct Share หรือ Telegram แทน
+                  </p>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-slate-200 text-[11px] font-semibold text-rose-700">
+                  <span>ไม่สามารถออก Token ใหม่ได้แล้ว</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Quick Info & LINE Preview Card */}
-          <div className="space-y-6">
-            <div className="bg-gradient-to-b from-slate-900 to-slate-950 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-slate-800 relative">
-              <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 mb-4 uppercase tracking-wider">
-                <Smartphone className="w-4 h-4" />
-                <span>จำลองการแสดงผลบน LINE App</span>
-              </div>
-
-              {/* Chat bubble */}
-              <div className="bg-[#85c977]/20 p-3 rounded-2xl border border-emerald-500/20 mb-3">
-                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
-                  <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center font-bold text-white text-xs">
-                    L
-                  </div>
+          {/* Configuration Form Card */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="bg-white rounded-2xl p-5 sm:p-7 shadow-xs border border-slate-200">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
                   <div>
-                    <div className="text-xs font-bold text-white">LINE Notify</div>
-                    <div className="text-[10px] text-emerald-300">บอทแจ้งเตือนอัตโนมัติ</div>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <Key className="w-5 h-5 text-emerald-600" />
+                      <span>
+                        ตั้งค่าช่องทาง:{' '}
+                        {activeChannel === 'line_share' && 'แชร์เข้ากลุ่ม LINE โดยตรง'}
+                        {activeChannel === 'telegram' && 'Telegram Bot'}
+                        {activeChannel === 'line_oa' && 'LINE Official Account'}
+                        {activeChannel === 'discord' && 'Discord Webhook'}
+                        {activeChannel === 'webhook' && 'Custom Webhook'}
+                        {activeChannel === 'line_notify' && 'LINE Notify (ปิดบริการ)'}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      กำหนดค่าเชื่อมต่อและรายละเอียดข้อมูลผู้รับการแจ้งเตือน
+                    </p>
                   </div>
+                  <span
+                    className={`text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 ${
+                      activeChannel === 'line_share' ||
+                      (activeChannel === 'telegram' && settings.telegram_bot_token && settings.telegram_chat_id) ||
+                      (activeChannel === 'discord' && settings.discord_webhook_url) ||
+                      (activeChannel === 'line_oa' && settings.line_oa_channel_access_token) ||
+                      (activeChannel === 'webhook' && settings.custom_webhook_url)
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    พร้อมใช้งาน
+                  </span>
                 </div>
 
-                <div className="text-[11px] text-slate-200 whitespace-pre-line leading-relaxed font-sans bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                  {`📢 [ประกาศผลสอบอย่างเป็นทางการ]
-🏫 ${schoolDisplayName}
-👥 ระดับชั้น: ห้อง ${classroomDisplayName}
-📚 วิชา: ${activeSubject?.name || 'ภาษาไทย'}
-🗓️ ${activeTerm?.name || 'ภาคเรียนที่ 1'} ปีการศึกษา ${activeTerm?.academic_year || '2569'}
+                <form onSubmit={handleSaveSettings} className="space-y-5">
+                  {/* Dynamic inputs based on activeChannel */}
 
-📊 สถิติ: เข้าสอบครบ ${students.length} คน
-🌟 นักเรียนและผู้ปกครองสามารถตรวจสอบผลคะแนนได้ที่ระบบออนไลน์`}
-                </div>
-              </div>
+                  {/* Channel: line_share */}
+                  {activeChannel === 'line_share' && (
+                    <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                          <Check className="w-4 h-4" />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-emerald-950 text-sm">
+                            ไม่ต้องกรอก Token หรือลงทะเบียนใดๆ ทั้งสิ้น!
+                          </h4>
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            เมื่อบันทึกคะแนนเสร็จสิ้น คุณครูสามารถคลิกปุ่ม <strong>"แชร์เข้า LINE"</strong> ได้ทันที ระบบจะเปิดแอป LINE บนมือถือหรือคอมพิวเตอร์ แล้วให้คุณครูเลือกกลุ่มผู้ปกครองหรือแชทที่ต้องการส่งต่อได้โดยตรง สะดวก รวดเร็ว และไม่มีวันหมดอายุ
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleTestConnection}
+                          className="px-3.5 py-2 bg-[#06C755] hover:bg-[#05963F] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>ทดสอบเปิดแชร์เข้าแอป LINE</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-              <div className="text-[11px] text-slate-400 leading-relaxed">
-                ข้อความจะถูกส่งตรงเข้ากลุ่มไลน์ผู้ปกครองทันทีที่ครูกดส่งจากหน้าบันทึกคะแนน
+                  {/* Channel: Telegram */}
+                  {activeChannel === 'telegram' && (
+                    <div className="space-y-4 p-4 rounded-2xl bg-sky-50/50 border border-sky-200">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Telegram Bot Token <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showToken ? 'text' : 'password'}
+                            value={settings.telegram_bot_token || ''}
+                            onChange={(e) =>
+                              setSettings({ ...settings, telegram_bot_token: e.target.value })
+                            }
+                            placeholder="เช่น 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ..."
+                            className="w-full pl-3 pr-20 py-2.5 text-xs sm:text-sm font-mono bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowToken(!showToken)}
+                            className="absolute right-2 top-2 px-2.5 py-1 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            <span>{showToken ? 'ซ่อน' : 'แสดง'}</span>
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                          <span>สร้างบอทฟรีได้ใน 1 นาทีผ่าน</span>
+                          <a
+                            href="https://t.me/BotFather"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sky-700 font-bold underline inline-flex items-center gap-0.5"
+                          >
+                            <span>@BotFather บน Telegram</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Telegram Chat ID / Group ID <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.telegram_chat_id || ''}
+                          onChange={(e) =>
+                            setSettings({ ...settings, telegram_chat_id: e.target.value })
+                          }
+                          placeholder="เช่น -100123456789 (สำหรับกลุ่ม) หรือ 123456789 (แชทส่วนตัว)"
+                          className="w-full px-3 py-2.5 text-xs sm:text-sm font-mono bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          💡 คำแนะนำ: ดึงบอทเข้ากลุ่ม แล้วเชิญ <code>@userinfobot</code> หรือพิมพ์ข้อความเข้ากลุ่มเพื่อดู Chat ID
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Channel: LINE OA */}
+                  {activeChannel === 'line_oa' && (
+                    <div className="space-y-4 p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Channel Access Token (Long-lived) <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showToken ? 'text' : 'password'}
+                            value={settings.line_oa_channel_access_token || ''}
+                            onChange={(e) =>
+                              setSettings({ ...settings, line_oa_channel_access_token: e.target.value })
+                            }
+                            placeholder="วาง Channel Access Token จาก LINE Developers Console..."
+                            className="w-full pl-3 pr-20 py-2.5 text-xs sm:text-sm font-mono bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowToken(!showToken)}
+                            className="absolute right-2 top-2 px-2.5 py-1 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            <span>{showToken ? 'ซ่อน' : 'แสดง'}</span>
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          รับ Token ได้ที่{' '}
+                          <a
+                            href="https://developers.line.biz/console/"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-emerald-700 font-bold underline inline-flex items-center gap-0.5"
+                          >
+                            <span>LINE Developers Console</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>{' '}
+                          (แท็บ Messaging API)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Channel: Discord */}
+                  {activeChannel === 'discord' && (
+                    <div className="space-y-4 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-200">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Discord Webhook URL <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          value={settings.discord_webhook_url || ''}
+                          onChange={(e) =>
+                            setSettings({ ...settings, discord_webhook_url: e.target.value })
+                          }
+                          placeholder="https://discord.com/api/webhooks/1234567890/..."
+                          className="w-full px-3 py-2.5 text-xs sm:text-sm font-mono bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          💡 ใน Discord: คลิกขวาที่ห้องแชท &gt; Edit Channel &gt; Integrations &gt; Webhooks &gt; Copy Webhook URL
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Channel: Custom Webhook */}
+                  {activeChannel === 'webhook' && (
+                    <div className="space-y-4 p-4 rounded-2xl bg-purple-50/50 border border-purple-200">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Custom Webhook Endpoint URL <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          value={settings.custom_webhook_url || ''}
+                          onChange={(e) =>
+                            setSettings({ ...settings, custom_webhook_url: e.target.value })
+                          }
+                          placeholder="https://script.google.com/macros/s/.../exec"
+                          className="w-full px-3 py-2.5 text-xs sm:text-sm font-mono bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          ระบบจะส่งข้อมูลแบบ HTTP POST (JSON Payload: <code>&#123; message, meta, school, timestamp &#125;</code>)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Channel: LINE Notify Legacy */}
+                  {activeChannel === 'line_notify' && (
+                    <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-2">
+                      <div className="flex items-center gap-2 text-rose-800 font-bold text-sm">
+                        <AlertTriangle className="w-4 h-4 text-rose-600" />
+                        <span>LINE Notify ปิดบริการแล้ว</span>
+                      </div>
+                      <p className="text-xs text-rose-700 leading-relaxed">
+                        LINE Corporation ได้ยุติการให้บริการ LINE Notify อย่างเป็นทางการตั้งแต่วันที่ 31 มีนาคม 2025 เป็นต้นไป คุณครูจะไม่สามารถรับการแจ้งเตือนผ่านช่องทางนี้ได้ กรุณากดปุ่มด้านล่างเพื่อสลับไปใช้ <strong>LINE Direct Share</strong> หรือ <strong>Telegram</strong>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectChannel('line_share')}
+                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer"
+                      >
+                        สลับไปใช้ LINE Direct Share ทันที
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Target Group & School Signature */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        ชื่อกลุ่มผู้รับการแจ้งเตือน
+                      </label>
+                      <input
+                        type="text"
+                        value={settings.target_group_name}
+                        onChange={(e) =>
+                          setSettings({ ...settings, target_group_name: e.target.value })
+                        }
+                        placeholder="เช่น กลุ่มผู้ปกครอง ป.5/1"
+                        className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium text-slate-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        ชื่อโรงเรียน / ลายเซ็นลงท้าย
+                      </label>
+                      <input
+                        type="text"
+                        value={settings.school_signature}
+                        onChange={(e) =>
+                          setSettings({ ...settings, school_signature: e.target.value })
+                        }
+                        placeholder="โรงเรียนบ้านป่าส่าน"
+                        className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Triggers & Rules Checkboxes */}
+                  <div className="pt-3 border-t border-slate-100">
+                    <label className="block text-xs font-bold text-slate-800 mb-3">
+                      เงื่อนไขและรูปแบบการแจ้งเตือน
+                    </label>
+                    <div className="space-y-3">
+                      <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings.notify_on_score_saved}
+                          onChange={(e) =>
+                            setSettings({ ...settings, notify_on_score_saved: e.target.checked })
+                          }
+                          className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div>
+                          <div className="text-xs sm:text-sm font-bold text-slate-800">
+                            แจ้งเตือนเมื่อครูบันทึกผลการเรียนเสร็จสิ้นในหน้าบันทึกคะแนน
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            แสดงปุ่มส่งสรุปคะแนนอัตโนมัติไปยังกลุ่มผู้ปกครองทันทีหลังกดบันทึกคะแนนรายวิชา
+                          </div>
+                        </div>
+                      </label>
+
+                      <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings.notify_on_midterm_final}
+                          onChange={(e) =>
+                            setSettings({ ...settings, notify_on_midterm_final: e.target.checked })
+                          }
+                          className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div>
+                          <div className="text-xs sm:text-sm font-bold text-slate-800">
+                            แจ้งเตือนเมื่อครูประกาศคะแนนสอบกลางภาค / ปลายภาค
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            ส่งสถิติคะแนนเต็ม, คะแนนเฉลี่ย, คะแนนสูงสุด-ต่ำสุด เพื่อให้ผู้ปกครองทราบผลการประเมิน
+                          </div>
+                        </div>
+                      </label>
+
+                      <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings.notify_on_missing_or_absent}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              notify_on_missing_or_absent: e.target.checked,
+                            })
+                          }
+                          className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div>
+                          <div className="text-xs sm:text-sm font-bold text-slate-800">
+                            แจ้งเตือนกรณีมีงานค้างส่ง หรือขาดสอบ (ติด "ร" หรือ "มส")
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            ระบุรายชื่อนักเรียนและรายการที่ยังไม่ส่ง เพื่อให้ผู้ปกครองช่วยติดตามดูแล
+                          </div>
+                        </div>
+                      </label>
+
+                      <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs sm:text-sm font-bold text-slate-800">
+                            เกณฑ์คะแนนต่ำกว่าเกณฑ์สำหรับแจ้งเตือน
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            หากคะแนนเก็บต่ำกว่าเปอร์เซ็นต์นี้ จะแสดงในรายการที่ต้องติดตาม
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="10"
+                            max="90"
+                            step="5"
+                            value={settings.low_score_threshold_percent}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                low_score_threshold_percent: parseInt(e.target.value) || 50,
+                              })
+                            }
+                            className="w-20 px-2.5 py-1.5 text-center text-sm font-bold bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                          />
+                          <span className="text-xs font-bold text-slate-600">% (เช่น 50%)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Save & Test Actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={handleTestConnection}
+                      disabled={isTesting}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isTesting ? (
+                        <RotateCw className="w-4 h-4 animate-spin text-emerald-600" />
+                      ) : (
+                        <Send className="w-4 h-4 text-emerald-600" />
+                      )}
+                      <span>{isTesting ? 'กำลังทดสอบ...' : `ทดสอบส่งข้อความ (${activeChannel.toUpperCase()})`}</span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      {savedSuccess && (
+                        <span className="text-xs text-emerald-600 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4" />
+                          บันทึกการตั้งค่าแล้ว
+                        </span>
+                      )}
+                      <button
+                        type="submit"
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-sm flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>บันทึกการตั้งค่า</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Test Result Box */}
+                  {testResult && (
+                    <div
+                      className={`p-4 rounded-xl text-xs flex items-start gap-3 border ${
+                        testResult.success
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                          : 'bg-rose-50 border-rose-200 text-rose-900'
+                      }`}
+                    >
+                      {testResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <div className="font-bold">
+                          {testResult.success ? 'ทดสอบเชื่อมต่อสำเร็จ!' : 'ทดสอบไม่สำเร็จ'}
+                        </div>
+                        <p className="mt-0.5 leading-relaxed">{testResult.message}</p>
+                      </div>
+                    </div>
+                  )}
+                </form>
               </div>
             </div>
 
-            {/* Step Check Card */}
-            <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 text-xs text-emerald-900 space-y-2">
-              <div className="font-bold flex items-center gap-1.5 text-emerald-800">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>ข้อกำหนดการใช้งาน LINE Notify</span>
+            {/* Quick Info & Preview Card */}
+            <div className="space-y-6">
+              <div className="bg-linear-to-b from-slate-900 to-slate-950 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-slate-800 relative">
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 mb-4 uppercase tracking-wider">
+                  <Smartphone className="w-4 h-4" />
+                  <span>จำลองการแจ้งเตือนผู้ปกครอง</span>
+                </div>
+
+                <div className="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/80 space-y-3">
+                  <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-700">
+                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-slate-950 font-bold flex items-center justify-center text-xs">
+                      🔔
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">
+                        {settings.school_signature || 'โรงเรียนบ้านป่าส่าน'}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        ถึง: {settings.target_group_name || 'กลุ่มผู้ปกครอง ป.5/1'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-slate-200 font-sans leading-relaxed whitespace-pre-wrap">
+                    {`📝 [แจ้งเตือนการบันทึกคะแนนเก็บ]\n👥 ชั้นเรียน: ห้อง ${classroomDisplayName}\n📚 วิชา: ภาษาไทย (ท15101)\n📊 สถานะ: บันทึกคะแนนเรียบร้อยแล้ว (${students.length}/${students.length} คน)\n📲 ผู้ปกครองสามารถเปิดดูผลสอบได้ผ่านระบบผลการเรียน`}
+                  </div>
+
+                  <div className="text-[10px] text-slate-400 text-right">
+                    {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span>ช่องทางที่ใช้งาน:</span>
+                    <span className="font-bold text-emerald-400">
+                      {activeChannel === 'line_share' && 'แชร์เข้า LINE โดยตรง'}
+                      {activeChannel === 'telegram' && 'Telegram Bot'}
+                      {activeChannel === 'line_oa' && 'LINE Official Account'}
+                      {activeChannel === 'discord' && 'Discord Webhook'}
+                      {activeChannel === 'webhook' && 'Custom Webhook'}
+                      {activeChannel === 'line_notify' && 'LINE Notify (ปิดบริการ)'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>สถานะความพร้อม:</span>
+                    <span className="text-emerald-400 font-medium">✓ เปิดใช้งาน</span>
+                  </div>
+                </div>
               </div>
-              <ul className="list-disc list-inside space-y-1 text-[11px] text-emerald-800/90 leading-relaxed">
-                <li>ฟรี ไม่มีค่าใช้จ่าย และไม่จำกัดจำนวนครั้งในการส่ง</li>
-                <li>ต้องเชิญบัญชี <strong>LINE Notify</strong> เข้ากลุ่มไลน์ที่ต้องการรับข้อความ</li>
-                <li>สามารถตั้ง Token แยกแต่ละห้องเรียนหรือใช้ร่วมกันทั้งโรงเรียนได้</li>
-              </ul>
+
+              {/* Quick Action Guide Callout */}
+              <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
+                <h4 className="font-bold text-xs text-emerald-900 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>ทำไมแนะนำ "LINE Direct Share"?</span>
+                </h4>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  เนื่องจาก LINE ปิดบริการบอท Notify ทั้งหมด การแชร์ตรง (Direct Share) เป็นวิธีเดียวที่ใช้งานได้ 100% ไม่เสียค่าบริการ ไม่เสี่ยงโดนบล็อก และผู้ปกครองในไทยคุ้นเคยกับกลุ่ม LINE มากที่สุดครับ
+                </p>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Tab 2: Broadcast & Custom Notification */}
+      {/* Tab 2: Broadcast / Manual Send */}
       {activeSubTab === 'broadcast' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Controls */}
+          {/* Builder Form */}
           <div className="lg:col-span-6 space-y-5">
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-slate-200 space-y-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  <Send className="w-4 h-4 text-emerald-600" />
-                  <span>สร้างข้อความแจ้งเตือน / สรุปผลการเรียน</span>
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  เลือกประเภทข้อความและวิชาที่ต้องการส่ง ระบบจะจัดฟอร์แมตข้อความให้อัตโนมัติ
-                </p>
-              </div>
-
-              {/* Type Selection */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-2">
-                  1. เลือกประเภทข้อความ
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBroadcastType('score_saved')}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      broadcastType === 'score_saved'
-                        ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-200 text-emerald-900'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <div className="text-xs font-bold">📝 สรุปการบันทึกคะแนนเก็บ</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
-                      แจ้งว่าครูลงคะแนนเสร็จสิ้นแล้ว
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setBroadcastType('midterm_final')}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      broadcastType === 'midterm_final'
-                        ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-200 text-emerald-900'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <div className="text-xs font-bold">🎯 ประกาศผลสอบกลาง/ปลายภาค</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
-                      ส่งสถิติ คะแนนเฉลี่ย สูงสุด-ต่ำสุด
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setBroadcastType('low_score_alert')}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      broadcastType === 'low_score_alert'
-                        ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-200 text-amber-900'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <div className="text-xs font-bold">⚠️ ติดตามงาน / คะแนนต่ำกว่าเกณฑ์</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
-                      แจ้งเตือนนักเรียนติด ร/มส หรือตก
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setBroadcastType('custom_broadcast')}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      broadcastType === 'custom_broadcast'
-                        ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200 text-indigo-900'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <div className="text-xs font-bold">💬 ประกาศข่าวสารทั่วไป</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
-                      พิมพ์ข้อความอิสระส่งถึงผู้ปกครอง
-                    </div>
-                  </button>
+              <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
+                    <Send className="w-4 h-4 text-emerald-600" />
+                    <span>สร้างข้อความแจ้งเตือนผู้ปกครอง</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    เลือกเทมเพลตข้อมูลผลการเรียน หรือพิมพ์ข้อความประกาศตามต้องการ
+                  </p>
                 </div>
               </div>
 
-              {/* Subject & Term Filter */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {/* Message Type Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  รูปแบบข้อความที่ต้องการส่ง
+                </label>
+                <select
+                  value={broadcastType}
+                  onChange={(e) => setBroadcastType(e.target.value as NotificationType)}
+                  className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
+                >
+                  <option value="score_saved">📝 แจ้งเตือนการบันทึกคะแนนเก็บประจำวิชา</option>
+                  <option value="midterm_final">🎯 ประกาศผลสอบกลางภาค / ปลายภาค</option>
+                  <option value="low_score_alert">⚠️ แจ้งเตือนติดตามคะแนนต่ำกว่าเกณฑ์ / งานค้างส่ง</option>
+                  <option value="missing_work_alert">⚠️ แจ้งเตือนนักเรียนติด "ร" หรือ "มส"</option>
+                  <option value="custom_broadcast">💬 ประกาศข่าวสารทั่วไปจากครูประจำชั้น</option>
+                </select>
+              </div>
+
+              {/* Subject & Term Selectors */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    2. เลือกรายวิชา
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">รายวิชา</label>
                   <select
                     value={selectedSubjectId}
                     onChange={(e) => setSelectedSubjectId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800"
                   >
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code})
+                    {subjects.map((sub) => (
+                      <option key={sub.id} value={sub.id}>
+                        {sub.name} ({sub.code})
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    3. เลือกภาคเรียน
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ภาคเรียน</label>
                   <select
                     value={selectedTermId}
                     onChange={(e) => setSelectedTermId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-800"
                   >
                     {terms.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -862,9 +1290,9 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
                 </div>
               </div>
 
-              {/* Custom fields if custom type */}
+              {/* Custom Broadcast Extra Fields */}
               {broadcastType === 'custom_broadcast' && (
-                <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="space-y-3 pt-2">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       หัวข้อประกาศ
@@ -873,8 +1301,8 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
                       type="text"
                       value={customTitle}
                       onChange={(e) => setCustomTitle(e.target.value)}
-                      placeholder="เช่น แจ้งกำหนดการสอบปลายภาคและส่งงานวันสุดท้าย"
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                      placeholder="เช่น แจ้งกำหนดการประชุมผู้ปกครองภาคเรียนที่ 1"
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl font-medium"
                     />
                   </div>
                   <div>
@@ -885,33 +1313,33 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
                       rows={4}
                       value={customMessage}
                       onChange={(e) => setCustomMessage(e.target.value)}
-                      placeholder="พิมพ์รายละเอียดที่ต้องการแจ้งให้ผู้ปกครองทราบ..."
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500"
-                    ></textarea>
+                      placeholder="พิมพ์รายละเอียดที่ต้องการส่งถึงผู้ปกครอง..."
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl font-medium"
+                    />
                   </div>
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={handleCopyText}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     {copiedPreview ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedPreview ? 'คัดลอกแล้ว!' : 'คัดลอกข้อความ'}</span>
+                    <span>{copiedPreview ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}</span>
                   </button>
 
                   <a
                     href={lineNotifyService.getLineShareUrl(livePreviewText)}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-3 py-2 bg-[#06C755]/10 hover:bg-[#06C755]/20 text-[#05963F] border border-[#06C755]/30 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors"
+                    className="px-3.5 py-2 bg-[#06C755]/15 hover:bg-[#06C755]/25 text-[#05963F] border border-[#06C755]/30 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors"
                   >
                     <Share2 className="w-3.5 h-3.5" />
-                    <span>แชร์ลง LINE</span>
+                    <span>แชร์ลง LINE ทันที</span>
                   </a>
                 </div>
 
@@ -926,14 +1354,20 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
                   ) : (
                     <Send className="w-4 h-4" />
                   )}
-                  <span>{isBroadcasting ? 'กำลังส่ง...' : 'ส่งผ่าน LINE Notify'}</span>
+                  <span>
+                    {isBroadcasting
+                      ? 'กำลังส่ง...'
+                      : activeChannel === 'line_share'
+                      ? 'เปิดแชร์เข้า LINE'
+                      : `ส่งผ่าน ${activeChannel.toUpperCase()}`}
+                  </span>
                 </button>
               </div>
 
-              {/* Broadcast Result */}
+              {/* Broadcast Result Banner */}
               {broadcastResult && (
                 <div
-                  className={`p-4 rounded-xl text-xs flex items-start gap-3 border ${
+                  className={`p-3.5 rounded-xl text-xs flex items-start gap-2.5 border ${
                     broadcastResult.success
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                       : 'bg-rose-50 border-rose-200 text-rose-900'
@@ -1093,74 +1527,209 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
         </div>
       )}
 
-      {/* Tab 4: Setup Guide */}
+      {/* Tab 4: Comprehensive Migration & Setup Guide */}
       {activeSubTab === 'guide' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200 space-y-6">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-emerald-600" />
-              <span>ขั้นตอนการขอ LINE Notify Token เพื่อเชื่อมต่อระบบ</span>
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              ทำตาม 4 ขั้นตอนง่ายๆ ด้านล่างนี้เพื่อเปิดใช้งานระบบแจ้งเตือนผลการเรียนอัตโนมัติ
-            </p>
+        <div className="space-y-6">
+          {/* Comparison Table */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200 space-y-5">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-2">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>ตารางเปรียบเทียบช่องทางทดแทน LINE Notify สำหรับโรงเรียน</span>
+              </div>
+              <h2 className="text-lg sm:text-xl font-extrabold text-slate-800">
+                LINE Notify ปิดแล้ว ใช้อะไรแทนดี? สรุปจุดเด่นของแต่ละทางเลือก
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                LINE Notify ได้ยุติการให้บริการอย่างเป็นทางการเมื่อวันที่ 31 มีนาคม 2025 นี่คือทางเลือกที่ดีที่สุดสำหรับคุณครู
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                    <th className="py-3 px-3 rounded-l-xl">ช่องทาง</th>
+                    <th className="py-3 px-3">ค่าใช้จ่าย</th>
+                    <th className="py-3 px-3">ขีดจำกัดข้อความ</th>
+                    <th className="py-3 px-3">ความยากในการติดตั้ง</th>
+                    <th className="py-3 px-3 rounded-r-xl">ความเหมาะสม</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  <tr className="hover:bg-emerald-50/50 bg-emerald-50/20">
+                    <td className="py-3.5 px-3 font-bold text-emerald-950 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-[#06C755] text-white flex items-center justify-center text-xs">
+                        <Share2 className="w-3.5 h-3.5" />
+                      </span>
+                      <span>แชร์เข้า LINE โดยตรง (Direct Share)</span>
+                    </td>
+                    <td className="py-3.5 px-3 text-emerald-700 font-bold">ฟรี 100% ตลอดชีพ</td>
+                    <td className="py-3.5 px-3 text-emerald-700 font-bold">ไม่จำกัด</td>
+                    <td className="py-3.5 px-3 text-slate-600">ง่ายมาก (ไม่ต้องตั้งค่า)</td>
+                    <td className="py-3.5 px-3 text-emerald-800 font-bold">
+                      ⭐ เหมาะกับคุณครูทุกคน ส่งเข้ากลุ่มผู้ปกครองทันที
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-sky-50/50">
+                    <td className="py-3.5 px-3 font-bold text-sky-950 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-[#229ED9] text-white flex items-center justify-center text-xs">
+                        <Radio className="w-3.5 h-3.5" />
+                      </span>
+                      <span>Telegram Bot API</span>
+                    </td>
+                    <td className="py-3.5 px-3 text-sky-700 font-bold">ฟรี 100% ตลอดชีพ</td>
+                    <td className="py-3.5 px-3 text-sky-700 font-bold">ไม่จำกัด (Unlimited)</td>
+                    <td className="py-3.5 px-3 text-slate-600">ปานกลาง (สร้างบอท 1 นาที)</td>
+                    <td className="py-3.5 px-3 text-sky-800 font-bold">
+                      🚀 เหมาะที่สุดสำหรับแจ้งเตือนแบบอัตโนมัติ
+                    </td>
+                  </tr>
+
+                  <tr className="hover:bg-slate-50">
+                    <td className="py-3.5 px-3 font-bold text-slate-900 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-[#00B900] text-white flex items-center justify-center text-xs">
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      </span>
+                      <span>LINE Official Account (LINE OA)</span>
+                    </td>
+                    <td className="py-3.5 px-3 text-slate-600">ฟรีตามแพ็กเกจ (มีโควต้าจำกัด)</td>
+                    <td className="py-3.5 px-3 text-slate-600">300-500 ข้อความ/เดือน (เกินมีค่าใช้จ่าย)</td>
+                    <td className="py-3.5 px-3 text-slate-600">ยาก (ต้องสมัคร Developers Console)</td>
+                    <td className="py-3.5 px-3 text-slate-700">เหมาะกับโรงเรียนขนาดใหญ่ที่มี LINE OA อยู่แล้ว</td>
+                  </tr>
+
+                  <tr className="hover:bg-slate-50">
+                    <td className="py-3.5 px-3 font-bold text-slate-900 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-[#5865F2] text-white flex items-center justify-center text-xs">
+                        <MessageSquare className="w-3.5 h-3.5" />
+                      </span>
+                      <span>Discord Webhook</span>
+                    </td>
+                    <td className="py-3.5 px-3 text-indigo-700 font-bold">ฟรี 100%</td>
+                    <td className="py-3.5 px-3 text-indigo-700 font-bold">ไม่จำกัด</td>
+                    <td className="py-3.5 px-3 text-slate-600">ง่าย (คัดลอก URL)</td>
+                    <td className="py-3.5 px-3 text-slate-700">เหมาะกับกลุ่มครูหรือฝ่ายวิชาการ</td>
+                  </tr>
+
+                  <tr className="hover:bg-slate-50">
+                    <td className="py-3.5 px-3 font-bold text-slate-900 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center text-xs">
+                        <Globe className="w-3.5 h-3.5" />
+                      </span>
+                      <span>Custom Webhook / Google Apps Script</span>
+                    </td>
+                    <td className="py-3.5 px-3 text-purple-700 font-bold">ฟรี (บน Google Workspace)</td>
+                    <td className="py-3.5 px-3 text-purple-700 font-bold">ไม่จำกัด</td>
+                    <td className="py-3.5 px-3 text-slate-600">ต้องมีความรู้เขียนสคริปต์</td>
+                    <td className="py-3.5 px-3 text-slate-700">เหมาะกับการส่งเข้าอีเมล หรือระบบฐานข้อมูล</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0">
-                1
+          {/* Detailed Guides for Top 2 Alternatives */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Guide 1: LINE Direct Share */}
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-200 space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <span className="w-10 h-10 rounded-2xl bg-[#06C755] text-white flex items-center justify-center shadow-xs">
+                  <Share2 className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm sm:text-base">
+                    วิธีที่ 1: แชร์เข้ากลุ่ม LINE โดยตรง (ง่ายที่สุด)
+                  </h3>
+                  <p className="text-xs text-emerald-700 font-bold">
+                    ไม่ต้องสมัครบอท ไม่ต้องกรอก Token ใช้งานได้ทันที
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <div className="text-sm font-bold text-emerald-950">เข้าสู่ระบบ LINE Notify</div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  เปิดเว็บไซต์{' '}
-                  <a
-                    href="https://notify-bot.line.me/my/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-bold text-emerald-700 underline"
-                  >
-                    notify-bot.line.me
-                  </a>{' '}
-                  และเข้าสู่ระบบด้วยบัญชี LINE ของคุณครู
-                </p>
+
+              <div className="space-y-3 text-xs text-slate-600">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">
+                    1
+                  </span>
+                  <div>
+                    <strong className="text-slate-800">เลือกช่องทาง "แชร์เข้ากลุ่ม LINE โดยตรง":</strong> ในหน้าตั้งค่านี้ ตรวจสอบให้แน่ใจว่าเลือกกล่อง <strong>"แชร์เข้ากลุ่ม LINE โดยตรง"</strong>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">
+                    2
+                  </span>
+                  <div>
+                    <strong className="text-slate-800">กดปุ่ม "แชร์ลง LINE":</strong> ในหน้าบันทึกคะแนน เมื่อกรอกคะแนนเสร็จ จะมีปุ่ม <strong>"แชร์ลง LINE"</strong> หรือในหน้าส่งข้อความด่วน ให้กดปุ่มแชร์
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">
+                    3
+                  </span>
+                  <div>
+                    <strong className="text-slate-800">เลือกกลุ่มห้องเรียนใน LINE:</strong> แอป LINE จะเปิดขึ้นมาอัตโนมัติ คุณครูเพียงเลือกกลุ่มผู้ปกครอง ป.5/1 แล้วกดยืนยันส่ง ข้อความรายงานผลจะถูกส่งเข้าห้องแชททันที!
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0">
-                2
+            {/* Guide 2: Telegram Bot Setup */}
+            <div className="bg-white rounded-3xl p-6 shadow-xs border border-slate-200 space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <span className="w-10 h-10 rounded-2xl bg-[#229ED9] text-white flex items-center justify-center shadow-xs">
+                  <Radio className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm sm:text-base">
+                    วิธีที่ 2: ตั้งค่า Telegram Bot (แจ้งเตือนอัตโนมัติ)
+                  </h3>
+                  <p className="text-xs text-sky-700 font-bold">
+                    ฟรี 100% ตลอดชีพ ไม่จำกัดจำนวนครั้ง สร้างง่ายใน 1 นาที
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <div className="text-sm font-bold text-emerald-950">ออก Access Token</div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  ไปที่ <strong>My page (หน้าของฉัน)</strong> เลื่อนลงมาด้านล่างแล้วกดปุ่ม <strong>"Generate token (ออก Token)"</strong>
-                </p>
-              </div>
-            </div>
 
-            <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0">
-                3
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm font-bold text-emerald-950">ตั้งชื่อและเลือกกลุ่ม</div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  พิมพ์ชื่อบอท เช่น <strong>"แจ้งผลการเรียน ป.5/1"</strong> และเลือกกลุ่มไลน์ผู้ปกครองที่ต้องการรับข้อความ แล้วกดออก Token
-                </p>
-              </div>
-            </div>
+              <div className="space-y-3 text-xs text-slate-600">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-sky-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">
+                    1
+                  </span>
+                  <div>
+                    <strong className="text-slate-800">สร้างบอทผ่าน @BotFather:</strong> เปิดแอป Telegram ค้นหา <code>@BotFather</code> แล้วพิมพ์คำสั่ง <code>/newbot</code> ตั้งชื่อบอท จะได้รับ <strong>HTTP API Token</strong>
+                  </div>
+                </div>
 
-            <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0">
-                4
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm font-bold text-emerald-950">เชิญบอทเข้ากลุ่มไลน์</div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  คัดลอก Token มาวางในแท็บ "การตั้งค่า" และ <strong>เชิญบัญชี 'LINE Notify' เข้ากลุ่มไลน์ผู้ปกครอง</strong> เพื่อเริ่มรับข้อความ
-                </p>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-sky-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">
+                    2
+                  </span>
+                  <div>
+                    <strong className="text-slate-800">ดึงบอทเข้ากลุ่ม:</strong> สร้างกลุ่มผู้ปกครองหรือครูใน Telegram แล้วดึงบอทที่เราเพิ่งสร้างเข้าไปในกลุ่ม และตั้งบอทเป็น Admin
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-sky-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">
+                    3
+                  </span>
+                  <div>
+                    <strong className="text-slate-800">หา Group Chat ID:</strong> เชิญ <code>@userinfobot</code> เข้ากลุ่ม หรือดู ID กลุ่ม (ขึ้นต้นด้วยเครื่องหมายลบ เช่น <code>-1001234567890</code>)
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-sky-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">
+                    4
+                  </span>
+                  <div>
+                    <strong className="text-slate-800">กรอกในหน้าตั้งค่า:</strong> นำ Bot Token และ Chat ID มากรอกในแท็บ <strong>"การตั้งค่า"</strong> แล้วกดทดสอบส่งได้ทันที
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1177,7 +1746,7 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
               </h3>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 text-xs font-bold"
+                className="text-slate-400 hover:text-slate-600 p-1 text-xs font-bold cursor-pointer"
               >
                 ✕ ปิด
               </button>
@@ -1200,16 +1769,25 @@ export const NotificationSettingsPage: React.FC<NotificationSettingsPageProps> =
                   navigator.clipboard.writeText(selectedLog.message);
                   alert('คัดลอกข้อความแล้ว');
                 }}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
               >
                 คัดลอกข้อความ
               </button>
+              <a
+                href={lineNotifyService.getLineShareUrl(selectedLog.message)}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 bg-[#06C755] hover:bg-[#05963F] text-white rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>แชร์ลง LINE</span>
+              </a>
               <button
                 type="button"
                 onClick={() => setSelectedLog(null)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold cursor-pointer"
               >
-                เสร็จสิ้น
+                ปิด
               </button>
             </div>
           </div>

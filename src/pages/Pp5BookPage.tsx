@@ -5,6 +5,9 @@ import {
   calculateSubjectGradeStats,
   exportToCSV,
 } from '../utils/gradeCalculator';
+import { formatCitizenId } from '../utils/dmcParser';
+import { storage } from '../services/storage';
+import { SchoolLogo } from '../components/SchoolLogo';
 import {
   BookOpen,
   Printer,
@@ -41,14 +44,15 @@ export const Pp5BookPage: React.FC<Pp5BookPageProps> = ({
   activeClassroom,
   user,
 }) => {
+  const schoolSettings = useMemo(() => storage.getSchoolSettings(), []);
   const [activeTab, setActiveTab] = useState<'matrix' | 'cover' | 'attributes' | 'stats' | 'full_book'>('matrix');
-  const [academicYear, setAcademicYear] = useState<string>(activeClassroom.academic_year || '2569');
-  const [schoolName, setSchoolName] = useState<string>(user?.school_name || 'โรงเรียนบ้านป่าส่าน (สพฐ.)');
+  const [academicYear, setAcademicYear] = useState<string>(activeClassroom.academic_year || schoolSettings.academic_year || '2569');
+  const [schoolName, setSchoolName] = useState<string>(schoolSettings.school_name || user?.school_name || 'โรงเรียนบ้านป่าส่าน (สพฐ.)');
   const [homeroomTeacher, setHomeroomTeacher] = useState<string>(
-    activeClassroom.homeroom_teacher || user?.full_name || 'ครูสมศรี จิตเมตตา'
+    schoolSettings.teacher_name || activeClassroom.homeroom_teacher || user?.full_name || 'ครูสมศรี จิตเมตตา'
   );
   const [academicHeadName, setAcademicHeadName] = useState<string>('นายวิชาญ การศึกษาดี');
-  const [principalName, setPrincipalName] = useState<string>('นายประเสริฐ สุขสวัสดิ์');
+  const [principalName, setPrincipalName] = useState<string>(schoolSettings.director_name || 'นายประเสริฐ สุขสวัสดิ์');
 
   // Compute classroom rankings and matrix
   const rankedStudents = useMemo(() => {
@@ -80,7 +84,7 @@ export const Pp5BookPage: React.FC<Pp5BookPageProps> = ({
     const headers = [
       'อันดับ',
       'เลขที่',
-      'เลขประจำตัว',
+      'เลขประจำตัวประชาชน',
       'ชื่อ-นามสกุล',
       'ห้อง',
       ...subjects.map((s) => `${s.name} (${s.code}) เกรด`),
@@ -301,7 +305,7 @@ export const Pp5BookPage: React.FC<Pp5BookPageProps> = ({
                 <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
                   <th className="py-2.5 px-2 text-center w-12 border-r border-slate-200">อันดับ</th>
                   <th className="py-2.5 px-2 text-center w-12 border-r border-slate-200">เลขที่</th>
-                  <th className="py-2.5 px-2.5 w-24 border-r border-slate-200">รหัสนักเรียน</th>
+                  <th className="py-2.5 px-2.5 w-36 border-r border-slate-200">เลขประจำตัวประชาชน</th>
                   <th className="py-2.5 px-3 min-w-[160px] border-r border-slate-200">ชื่อ - นามสกุล</th>
                   
                   {/* Subject Columns */}
@@ -346,8 +350,8 @@ export const Pp5BookPage: React.FC<Pp5BookPageProps> = ({
                       <td className="py-2 px-2 text-center font-medium text-slate-600 border-r border-slate-200">
                         {item.student.student_no}
                       </td>
-                      <td className="py-2 px-2.5 font-mono text-[11px] text-slate-500 border-r border-slate-200">
-                        {item.student.student_code}
+                      <td className="py-2 px-2.5 font-mono text-[11px] text-slate-700 font-semibold border-r border-slate-200">
+                        {formatCitizenId(item.student.student_code)}
                       </td>
                       <td className="py-2 px-3 font-semibold text-slate-900 border-r border-slate-200">
                         <div className="flex items-center justify-between">
@@ -414,10 +418,10 @@ export const Pp5BookPage: React.FC<Pp5BookPageProps> = ({
           {/* Official Cover Design */}
           <div className="text-center space-y-4 border-b-2 border-slate-800 pb-8">
             <div className="flex justify-center">
-              <GarudaVector className="w-20 h-20 text-amber-700" />
+              <SchoolLogo settings={schoolSettings} size="xl" className="mx-auto" />
             </div>
             <div className="text-xs font-bold tracking-widest text-slate-500 uppercase">
-              กระทรวงศึกษาธิการ • สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน (สพฐ.)
+              {schoolSettings.ministry || 'กระทรวงศึกษาธิการ • สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน (สพฐ.)'}
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               แบบบันทึกผลการพัฒนาคุณภาพผู้เรียน (ปพ.5)

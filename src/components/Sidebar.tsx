@@ -14,6 +14,8 @@ import {
   FileText,
   CreditCard,
   Trophy,
+  RotateCcw,
+  Settings,
 } from 'lucide-react';
 
 export type NavTab =
@@ -23,11 +25,13 @@ export type NavTab =
   | 'pp5-book'
   | 'individual-report'
   | 'id-cards'
+  | 'remedial'
   | 'certificates'
   | 'notifications'
   | 'students'
   | 'subjects'
   | 'google-sheets'
+  | 'school-settings'
   | 'backup'
   | 'student-portal';
 
@@ -88,6 +92,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'QR Code',
     },
     {
+      id: 'remedial' as NavTab,
+      label: 'สอนซ่อมเสริม & สอบแก้ตัว',
+      sublabel: 'Remedial & Re-exam',
+      icon: RotateCcw,
+      badge: 'สพฐ.',
+    },
+    {
       id: 'certificates' as NavTab,
       label: 'จัดอันดับ & เกียรติบัตร',
       sublabel: 'Ranking & ใบประกาศ PDF',
@@ -96,8 +107,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'notifications' as NavTab,
-      label: 'การแจ้งเตือน & LINE',
-      sublabel: 'LINE Notify ผู้ปกครอง',
+      label: 'แจ้งเตือนผู้ปกครอง',
+      sublabel: 'LINE / Telegram / แจ้งผล',
       icon: MessageSquare,
       badge: 'สื่อสาร',
     },
@@ -126,6 +137,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       sublabel: 'มุมมองนักเรียน / ผู้ปกครอง',
       icon: GraduationCap,
       badge: 'บริการ',
+    },
+    {
+      id: 'school-settings' as NavTab,
+      label: 'ตั้งค่าสถานศึกษา',
+      sublabel: 'ชื่อโรงเรียน โลโก้ และข้อมูล',
+      icon: Settings,
+      badge: 'ตั้งค่า',
     },
     {
       id: 'backup' as NavTab,

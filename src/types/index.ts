@@ -10,7 +10,8 @@ export interface Student {
   id: string;
   student_no: number; // เลขที่
   name: string; // ชื่อ-สกุล
-  student_code: string; // เลขประจำตัวนักเรียน
+  student_code: string; // เลขประจำตัวประชาชน 13 หลัก (Citizen ID / National ID)
+  citizen_id?: string; // เลขประจำตัวประชาชน 13 หลัก (สำรอง)
   classroom_id?: string; // id ห้องเรียน เช่น room-p5-1
   classroom: string; // ห้อง เช่น ป.5/1
   gender?: 'ชาย' | 'หญิง';
@@ -133,9 +134,18 @@ export interface CertificateSettings {
   sign_mode: 'digital' | 'line_only';
 }
 
+export type NotificationChannel =
+  | 'line_share' // แชร์เข้า LINE โดยตรง (ฟรี 100% ไม่ต้องใช้ Token)
+  | 'telegram' // Telegram Bot API (ฟรี 100% ข้อความไม่จำกัด)
+  | 'line_oa' // LINE Official Account Messaging API (แทน LINE Notify ทางการ)
+  | 'discord' // Discord Webhook (ฟรี 100%)
+  | 'webhook' // Custom Webhook / Google Apps Script
+  | 'line_notify'; // ระบบเดิม (ปิดบริการแล้ว)
+
 export interface LineNotifySettings {
   enabled: boolean;
-  token: string;
+  channel?: NotificationChannel; // ช่องทางการแจ้งเตือนที่เลือกใช้
+  token: string; // LINE Notify Token (เดิม)
   target_group_name: string; // เช่น กลุ่มผู้ปกครอง ป.5/1
   school_signature: string; // เช่น โรงเรียนบ้านป่าส่าน
   notify_on_score_saved: boolean; // แจ้งเตือนเมื่อครูบันทึกคะแนนเสร็จสิ้น
@@ -144,6 +154,21 @@ export interface LineNotifySettings {
   notify_on_missing_or_absent: boolean; // แจ้งเตือนกรณีมีงานค้างส่ง (ติด "ร" หรือขาดส่งงาน "มส")
   low_score_threshold_percent: number; // เกณฑ์คะแนนต่ำกว่า % เช่น 50%
   auto_notify_enabled: boolean; // ส่งอัตโนมัติหรือให้ครูกดอนุมัติ
+
+  // Telegram Settings
+  telegram_bot_token?: string; // Bot Token จาก @BotFather เช่น 123456:ABC-DEF...
+  telegram_chat_id?: string; // Chat ID หรือ Group ID เช่น -100123456789 หรือ @mygroup
+
+  // Discord Settings
+  discord_webhook_url?: string; // Webhook URL จาก Discord เช่น https://discord.com/api/webhooks/...
+
+  // LINE Official Account (Messaging API)
+  line_oa_channel_access_token?: string; // Channel Access Token (Long-lived)
+  line_oa_destination_type?: 'broadcast' | 'user_group'; // ส่งแบบ Broadcast หรือระบุ ID
+  line_oa_destination_id?: string; // User ID หรือ Group ID (กรณีส่งแบบเจาะจง)
+
+  // Custom Webhook / Google Apps Script
+  custom_webhook_url?: string; // Webhook URL เช่น Google Apps Script Web App URL
 }
 
 export interface ScoreWeightingConfig {
@@ -178,6 +203,8 @@ export type NotificationType =
   | 'midterm_final'
   | 'low_score_alert'
   | 'missing_work_alert'
+  | 'remedial_scheduled'
+  | 'remedial_passed'
   | 'custom_broadcast'
   | 'test_ping';
 
@@ -195,4 +222,91 @@ export interface NotificationLog {
   student_count?: number;
   error_message?: string;
 }
+
+export type RemedialStatus =
+  | 'pending' // รอดำเนินการซ่อมเสริม
+  | 'in_progress' // อยู่ระหว่างการสอนซ่อมเสริม
+  | 're_exam_scheduled' // นัดหมายสอบแก้ตัวแล้ว
+  | 'passed' // สอบแก้ตัวผ่านเกณฑ์
+  | 'failed'; // ยังไม่ผ่านเกณฑ์
+
+export type RemedialMethod =
+  | 'individual_tutoring' // การสอนเสริมรายบุคคล / กลุ่มย่อย
+  | 'remedial_worksheet' // มอบหมายใบงาน / แบบฝึกหัดปรับพื้นฐาน
+  | 'peer_tutoring' // กิจกรรมเพื่อนช่วยเพื่อน (Peer Tutoring)
+  | 'digital_learning' // เรียนรู้ผ่านสื่อคลิป / ห้องเรียนออนไลน์
+  | 'project_assignment' // โครงงาน / ชิ้นงานทดแทน
+  | 'other'; // วิธีการอื่นๆ
+
+export interface RemedialRecord {
+  id: string;
+  student_id: string;
+  student_name: string;
+  student_code?: string;
+  student_no?: number;
+  classroom_id?: string;
+  classroom_name?: string;
+  subject_id: string;
+  subject_name: string;
+  subject_code?: string;
+  term_id: string;
+  term_name?: string;
+  score_item_id?: string;
+  score_item_name?: string;
+  indicator_or_standard?: string; // ตัวชี้วัด / มาตรฐานการเรียนรู้
+  original_score: number; // คะแนนเดิมที่ไม่ผ่าน
+  max_score: number; // คะแนนเต็ม
+  target_passing_score: number; // คะแนนผ่านเกณฑ์ (เช่น 50% หรือ 60%)
+  
+  // แผนและการสอนซ่อมเสริม
+  learning_defect: string; // จุดบกพร่อง / สาเหตุที่ยังไม่ผ่าน
+  remedial_method: RemedialMethod; // วิธียกกระดับและสอนซ่อมเสริม
+  remedial_method_detail?: string; // รายละเอียดเพิ่มเติม
+  remedial_date?: string; // วันที่สอนซ่อมเสริม
+  remedial_duration_hours?: number; // จำนวนชั่วโมงที่ทำการสอนซ่อมเสริม
+  
+  // การสอบแก้ตัว / ประเมินผล
+  re_exam_date?: string; // วันที่สอบแก้ตัว
+  re_exam_score?: number | null; // คะแนนที่ได้จากการสอบแก้ตัว
+  final_recorded_score?: number | null; // คะแนนจริงที่บันทึกตามเกณฑ์โรงเรียน
+  status: RemedialStatus;
+  
+  // บันทึกความเห็นและการติดตาม
+  teacher_notes?: string;
+  remedial_round: number; // ครั้งที่สอบแก้ตัว (เช่น ครั้งที่ 1, 2)
+  synced_to_gradebook?: boolean; // ปรับคะแนนลงสมุดเกรดบุ๊กแล้วหรือไม่
+  
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type SchoolLogoType = 'custom' | 'garuda' | 'education' | 'seal' | 'none';
+
+export interface SchoolSettings {
+  school_name: string; // ชื่อโรงเรียน (ภาษาไทย)
+  school_name_en?: string; // ชื่อโรงเรียน (ภาษาอังกฤษ)
+  affiliation?: string; // สังกัด เช่น สพป. เชียงใหม่ เขต 1
+  ministry?: string; // กระทรวง เช่น สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน กระทรวงศึกษาธิการ
+  school_code?: string; // รหัสสถานศึกษา 10 หลัก
+  address?: string; // ที่ตั้ง/ถนน
+  subdistrict?: string; // ตำบล/แขวง
+  district?: string; // อำเภอ/เขต
+  province?: string; // จังหวัด
+  postal_code?: string; // รหัสไปรษณีย์
+  phone_number?: string; // เบอร์โทรศัพท์โรงเรียน
+  website_or_email?: string; // เว็บไซต์หรืออีเมล
+  director_name: string; // ชื่อผู้อำนวยการโรงเรียน (พร้อมคำนำหน้า)
+  director_title?: string; // ตำแหน่ง / วิทยฐานะ
+  director_signature_url?: string; // ลายเซ็นดิจิทัล ผอ. (Data URL / PNG)
+  academic_year: string; // ปีการศึกษา
+  logo_url?: string; // รูปภาพโลโก้โรงเรียน (Base64 Data URL)
+  logo_type: SchoolLogoType; // ประเภทตราสัญลักษณ์
+  document_header_title?: string; // ข้อความหัวเอกสารแบบรายงานผล ปพ.5
+  certificate_header_text?: string; // ข้อความบนหัวเกียรติบัตร
+  teacher_name?: string; // ชื่อครูผู้สอน/ครูประจำชั้น
+  teacher_signature_url?: string; // ลายเซ็นดิจิทัลครู
+  theme_accent_color?: string; // โทนสีเอกสาร
+}
+
 
