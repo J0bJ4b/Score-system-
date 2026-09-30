@@ -5,6 +5,7 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  signInAnonymously,
   User as FirebaseUser,
 } from 'firebase/auth';
 import {
@@ -168,3 +169,18 @@ export function subscribeToAuthChanges(callback: (user: User | null) => void) {
     }
   });
 }
+
+// Ensure an authenticated session exists for Firestore reads & writes
+export async function ensureFirebaseAuthSession(): Promise<string> {
+  if (auth.currentUser) {
+    return auth.currentUser.uid;
+  }
+  try {
+    const cred = await signInAnonymously(auth);
+    return cred.user.uid;
+  } catch (err) {
+    console.warn('Anonymous auth note (fallback):', err);
+    return 'local-teacher';
+  }
+}
+

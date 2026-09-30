@@ -206,6 +206,39 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "student_id", "student_name", "subject_id", "subject_name", "term_id", "original_score", "max_score", "status", "ownerId"]
+    },
+    "SchoolSettings": {
+      "title": "SchoolSettings",
+      "description": "School profile, branding, logo, and director configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "school_name": { "type": "string", "maxLength": 200 },
+        "school_name_en": { "type": "string", "maxLength": 200 },
+        "affiliation": { "type": "string", "maxLength": 200 },
+        "ministry": { "type": "string", "maxLength": 200 },
+        "school_code": { "type": "string", "maxLength": 50 },
+        "address": { "type": "string", "maxLength": 250 },
+        "subdistrict": { "type": "string", "maxLength": 100 },
+        "district": { "type": "string", "maxLength": 100 },
+        "province": { "type": "string", "maxLength": 100 },
+        "postal_code": { "type": "string", "maxLength": 20 },
+        "phone_number": { "type": "string", "maxLength": 50 },
+        "website_or_email": { "type": "string", "maxLength": 150 },
+        "director_name": { "type": "string", "maxLength": 150 },
+        "director_title": { "type": "string", "maxLength": 150 },
+        "director_signature_url": { "type": "string" },
+        "academic_year": { "type": "string", "maxLength": 20 },
+        "logo_url": { "type": "string" },
+        "logo_type": { "type": "string", "enum": ["garuda", "seal", "education", "custom", "none"] },
+        "document_header_title": { "type": "string", "maxLength": 200 },
+        "certificate_header_text": { "type": "string", "maxLength": 200 },
+        "teacher_name": { "type": "string", "maxLength": 150 },
+        "teacher_signature_url": { "type": "string" },
+        "theme_accent_color": { "type": "string", "maxLength": 30 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["school_name"]
     }
   },
   "firestore": {
@@ -248,6 +281,10 @@
     "/remedial_records/{recordId}": {
       "schema": "RemedialRecord",
       "description": "Records of remedial teaching and re-examinations"
+    },
+    "/school_settings/{settingsId}": {
+      "schema": "SchoolSettings",
+      "description": "School settings including name, logo, director, and address"
     }
   }
 }

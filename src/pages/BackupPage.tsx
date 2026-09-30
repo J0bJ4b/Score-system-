@@ -7,6 +7,7 @@ import {
   parseScoreCSVText,
 } from '../utils/csvScoreHandler';
 import { ScoreCsvImportExportModal } from '../components/ScoreCsvImportExportModal';
+import { realtimeSync, SyncStatus } from '../services/realtimeSync';
 import {
   Database,
   Download,
@@ -21,6 +22,8 @@ import {
   Sparkles,
   ArrowRight,
   Layers,
+  Cloud,
+  RefreshCw,
 } from 'lucide-react';
 
 interface BackupPageProps {
@@ -32,6 +35,30 @@ export const BackupPage: React.FC<BackupPageProps> = ({ onDataRestored }) => {
   const [errorMsg, setErrorMsg] = useState('');
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [csvModalTab, setCsvModalTab] = useState<'export' | 'import'>('export');
+  const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<SyncStatus>(() => realtimeSync.getStatus());
+
+  // Cloud Force Push
+  const handleForcePushToCloud = async () => {
+    setCloudSyncing(true);
+    setErrorMsg('');
+    try {
+      const ok = await realtimeSync.pushAllLocalDataToCloud();
+      if (ok) {
+        setSuccessMsg('ซิงค์ข้อมูลทั้งหมดขึ้น Cloud Firestore เรียบร้อยแล้ว ทุกเครื่องจะได้รับข้อมูลอัปเดตทันที');
+        setCloudStatus('connected');
+        setTimeout(() => setSuccessMsg(''), 5000);
+      } else {
+        setErrorMsg('ไม่สามารถซิงค์ขึ้น Cloud ได้ กรุณาตรวจสอบอินเทอร์เน็ต');
+        setTimeout(() => setErrorMsg(''), 5000);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการซิงค์');
+      setTimeout(() => setErrorMsg(''), 5000);
+    } finally {
+      setCloudSyncing(false);
+    }
+  };
 
   // Load current database snapshot
   const students = useMemo(() => storage.getAllStudents(), []);
@@ -155,6 +182,58 @@ export const BackupPage: React.FC<BackupPageProps> = ({ onDataRestored }) => {
             <span>{errorMsg}</span>
           </div>
         )}
+      </div>
+
+      {/* SECTION: CLOUD FIRESTORE REAL-TIME SYNC */}
+      <div className="bg-gradient-to-br from-indigo-900 via-indigo-800 to-sky-900 text-white rounded-2xl p-6 shadow-md border border-indigo-700/50 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+              <Cloud className="w-6 h-6 text-sky-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-extrabold text-base sm:text-lg">
+                  ระบบซิงค์คลาวด์เรียลไทม์ (Cloud Firestore Real-time)
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  เปิดใช้งานเรียลไทม์
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-sky-100/80 mt-0.5">
+                ข้อมูลคะแนน, นักเรียน, ห้องเรียน และการตั้งค่าสถานศึกษาเชื่อมโยงถึงกันทุกเครื่องและมือถืออัตโนมัติ
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={cloudSyncing}
+              onClick={handleForcePushToCloud}
+              className="px-4 py-2.5 bg-sky-400 hover:bg-sky-300 text-slate-900 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${cloudSyncing ? 'animate-spin' : ''}`} />
+              <span>{cloudSyncing ? 'กำลังซิงค์...' : 'บังคับซิงค์ขึ้น Cloud ทันที'}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-2 border-t border-white/10 text-sky-100/90">
+          <div className="p-2.5 bg-white/5 rounded-xl border border-white/10">
+            <div className="text-[10px] text-sky-300 font-semibold">การอัปเดตข้อมูล:</div>
+            <div className="font-bold text-white text-xs mt-0.5">เรียลไทม์อัตโนมัติ (onSnapshot)</div>
+          </div>
+          <div className="p-2.5 bg-white/5 rounded-xl border border-white/10">
+            <div className="text-[10px] text-sky-300 font-semibold">การทำงานเมื่อเน็ตหลุด:</div>
+            <div className="font-bold text-white text-xs mt-0.5">Offline-first (บันทึกในเครื่องก่อน)</div>
+          </div>
+          <div className="p-2.5 bg-white/5 rounded-xl border border-white/10">
+            <div className="text-[10px] text-sky-300 font-semibold">ฐานข้อมูลคลาวด์:</div>
+            <div className="font-bold text-white text-xs mt-0.5">Google Cloud Firestore</div>
+          </div>
+        </div>
       </div>
 
       {/* SECTION 1: EXCEL / CSV SCORE IMPORT & EXPORT (NEW USER REQUEST) */}

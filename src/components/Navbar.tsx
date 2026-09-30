@@ -1,6 +1,7 @@
 import React from 'react';
 import { User, Term, Classroom, SchoolSettings } from '../types';
 import { SchoolLogo } from './SchoolLogo';
+import { SyncStatus } from '../services/realtimeSync';
 import {
   School,
   UserCircle,
@@ -11,6 +12,9 @@ import {
   Plus,
   ChevronDown,
   GraduationCap,
+  Cloud,
+  CloudOff,
+  RefreshCw,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -27,6 +31,9 @@ interface NavbarProps {
   onOpenSchoolSettings?: () => void;
   onLogout: () => void;
   onResetData: () => void;
+  syncStatus?: SyncStatus;
+  lastSyncTime?: Date | null;
+  onManualSync?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -42,6 +49,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenStudentPortal,
   onOpenSchoolSettings,
   onLogout,
+  syncStatus = 'connected',
+  lastSyncTime,
+  onManualSync,
 }) => {
   const displayedSchoolName = schoolSettings?.school_name || user.school_name || 'โรงเรียนบ้านป่าส่าน';
   const displayedAffiliation = schoolSettings?.affiliation || 'สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน (สพฐ.)';
@@ -114,6 +124,41 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <GraduationCap className="w-4 h-4 text-indigo-600" />
                 <span>มุมมองนักเรียน</span>
+              </button>
+            )}
+
+            {/* Cloud Real-time Sync Status Indicator */}
+            {syncStatus === 'connected' ? (
+              <button
+                type="button"
+                onClick={onManualSync}
+                title={`Cloud Firestore เชื่อมต่อแล้ว (อัปเดตเรียลไทม์ทุกเครื่อง)${lastSyncTime ? ` • ล่าสุด: ${lastSyncTime.toLocaleTimeString('th-TH')}` : ''} • คลิกเพื่อบังคับซิงค์`}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold transition-all border border-emerald-200 shadow-2xs cursor-pointer"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hidden xl:inline">คลาวด์เรียลไทม์</span>
+              </button>
+            ) : syncStatus === 'syncing' ? (
+              <div
+                title="กำลังบันทึกและซิงค์ข้อมูลขึ้น Cloud Firestore..."
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 text-amber-800 rounded-xl text-xs font-bold border border-amber-200 shadow-2xs"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+                <span className="hidden xl:inline">กำลังซิงค์...</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onManualSync}
+                title="ทำงานแบบออฟไลน์ (บันทึกในเครื่อง) • คลิกเพื่อเชื่อมต่อ Cloud"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all border border-slate-200 shadow-2xs cursor-pointer"
+              >
+                <CloudOff className="w-3.5 h-3.5 text-slate-400" />
+                <span className="hidden xl:inline">ออฟไลน์</span>
               </button>
             )}
           </div>

@@ -26,12 +26,15 @@ import { BackupPage } from './pages/BackupPage';
 import { GoogleSheetsSyncPage } from './pages/GoogleSheetsSyncPage';
 import { StudentPortalPage } from './pages/StudentPortalPage';
 import { SchoolSettingsPage } from './pages/SchoolSettingsPage';
+import { realtimeSync, SyncStatus } from './services/realtimeSync';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => storage.getCurrentUser());
   const [schoolSettings, setSchoolSettings] = useState<SchoolSettings>(() => storage.getSchoolSettings());
   const [activeTab, setActiveTab] = useState<NavTab>('score-entry');
   const [portalStudent, setPortalStudent] = useState<Student | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => realtimeSync.getStatus());
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(() => realtimeSync.getLastSyncTime());
 
   // Classroom state
   const [classrooms, setClassrooms] = useState<Classroom[]>(() => storage.getClassrooms());
@@ -75,6 +78,16 @@ export default function App() {
   useEffect(() => {
     reloadData();
 
+    // Initialize real-time synchronization with Cloud Firestore
+    realtimeSync.init(() => {
+      reloadData();
+    });
+
+    const unsubscribeStatus = realtimeSync.subscribeStatus((status, time) => {
+      setSyncStatus(status);
+      setLastSyncTime(time);
+    });
+
     // Check if user arrived via Student ID Card QR Code scan (?student_code=XXXXX)
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -91,6 +104,10 @@ export default function App() {
     } catch (e) {
       console.warn('URL params parse error:', e);
     }
+
+    return () => {
+      unsubscribeStatus();
+    };
   }, [reloadData]);
 
   // Sync students whenever active classroom changes
@@ -175,6 +192,9 @@ export default function App() {
         onOpenSchoolSettings={() => setActiveTab('school-settings')}
         onLogout={handleLogout}
         onResetData={handleResetData}
+        syncStatus={syncStatus}
+        lastSyncTime={lastSyncTime}
+        onManualSync={() => realtimeSync.pushAllLocalDataToCloud()}
       />
 
       {/* Main Content Layout */}

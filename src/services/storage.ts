@@ -15,6 +15,7 @@ import {
   RemedialRecord,
   SchoolSettings,
 } from '../types';
+import { realtimeSync } from './realtimeSync';
 
 const STORAGE_KEYS = {
   STUDENTS: 'gradebook_students_v2',
@@ -681,6 +682,7 @@ export const storage = {
 
   saveClassrooms(classrooms: Classroom[]) {
     localStorage.setItem(STORAGE_KEYS.CLASSROOMS, JSON.stringify(classrooms));
+    realtimeSync.syncDocsBatch('classrooms', classrooms);
   },
 
   addClassroom(classroom: Omit<Classroom, 'id'>): Classroom {
@@ -777,6 +779,7 @@ export const storage = {
 
   saveStudents(students: Student[]) {
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    realtimeSync.syncDocsBatch('students', students);
   },
 
   addStudent(student: Omit<Student, 'id'>): Student {
@@ -843,6 +846,7 @@ export const storage = {
 
   saveSubjects(subjects: Subject[]) {
     localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
+    realtimeSync.syncDocsBatch('subjects', subjects);
   },
 
   addSubject(subject: Omit<Subject, 'id'>): Subject {
@@ -900,6 +904,7 @@ export const storage = {
 
   saveTerms(terms: Term[]) {
     localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(terms));
+    realtimeSync.syncDocsBatch('terms', terms);
   },
 
   // Score Items
@@ -917,6 +922,7 @@ export const storage = {
 
   saveScoreItems(items: ScoreItem[]) {
     localStorage.setItem(STORAGE_KEYS.SCORE_ITEMS, JSON.stringify(items));
+    realtimeSync.syncDocsBatch('score_items', items);
   },
 
   addScoreItem(item: Omit<ScoreItem, 'id'>): ScoreItem {
@@ -954,6 +960,7 @@ export const storage = {
 
   saveScores(scores: Score[]) {
     localStorage.setItem(STORAGE_KEYS.SCORES, JSON.stringify(scores));
+    realtimeSync.syncDocsBatch('scores', scores);
   },
 
   upsertScore(score: Omit<Score, 'id'> & { id?: string }): Score {
@@ -1044,6 +1051,7 @@ export const storage = {
 
   saveCertificates(certificates: Certificate[]) {
     localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(certificates));
+    realtimeSync.syncDocsBatch('certificates', certificates);
   },
 
   addCertificate(cert: Omit<Certificate, 'id'>): Certificate {
@@ -1086,6 +1094,7 @@ export const storage = {
   deleteCertificate(certId: string) {
     const certs = this.getAllCertificates().filter(c => c.id !== certId);
     this.saveCertificates(certs);
+    realtimeSync.deleteDoc('certificates', certId);
   },
 
   getCertificateSettings(): CertificateSettings {
@@ -1110,6 +1119,7 @@ export const storage = {
 
   saveSchoolSettings(settings: SchoolSettings) {
     localStorage.setItem(STORAGE_KEYS.SCHOOL_SETTINGS, JSON.stringify(settings));
+    realtimeSync.syncSchoolSettings(settings);
     // Keep user's school_name in sync
     const currentUser = this.getCurrentUser();
     if (currentUser && settings.school_name) {
@@ -1326,6 +1336,7 @@ export const storage = {
 
   saveRemedialRecords(records: RemedialRecord[]) {
     localStorage.setItem(STORAGE_KEYS.REMEDIAL_RECORDS, JSON.stringify(records));
+    realtimeSync.syncDocsBatch('remedial_records', records);
   },
 
   addRemedialRecord(record: Omit<RemedialRecord, 'id'>): RemedialRecord {
@@ -1373,6 +1384,7 @@ export const storage = {
   deleteRemedialRecord(id: string) {
     const records = this.getAllRemedialRecords().filter((r) => r.id !== id);
     this.saveRemedialRecords(records);
+    realtimeSync.deleteDoc('remedial_records', id);
   },
 
   // Sync passed re-exam score back to student's score in Gradebook

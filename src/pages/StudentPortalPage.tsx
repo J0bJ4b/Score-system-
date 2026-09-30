@@ -18,6 +18,7 @@ import {
 import { formatCitizenId, cleanCitizenId } from '../utils/dmcParser';
 import { StudentProgressChart } from '../components/StudentProgressChart';
 import { SchoolLogo } from '../components/SchoolLogo';
+import { realtimeSync } from '../services/realtimeSync';
 import {
   Search,
   School,
@@ -77,6 +78,8 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
     if (initialStudent) {
       setSelectedStudent(initialStudent);
     }
+    // Ensure real-time connection on student portal
+    realtimeSync.init(() => {});
   }, [initialStudent]);
 
   // Quick lookup handler

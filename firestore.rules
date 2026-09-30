@@ -13,7 +13,7 @@ service cloud.firestore {
     }
 
     function isVerifiedUser() {
-      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
+      return isSignedIn();
     }
 
     function isAdmin() {
@@ -216,79 +216,79 @@ service cloud.firestore {
     // Classrooms collection
     match /classrooms/{classroomId} {
       allow read: if true;
-      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(classroomId) && isValidClassroom(incoming());
-      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(classroomId) && isValidClassroom(incoming()) &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'level', 'academic_year', 'homeroom_teacher', 'updatedAt']);
-      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(classroomId);
+      allow create: if isVerifiedUser() && isValidId(classroomId) && isValidClassroom(incoming());
+      allow update: if isVerifiedUser() && isValidId(classroomId) && isValidClassroom(incoming());
+      allow delete: if isVerifiedUser() && isValidId(classroomId);
     }
 
     // Students collection
     match /students/{studentId} {
       allow read: if true;
-      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(studentId) && isValidStudent(incoming());
-      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(studentId) && isValidStudent(incoming()) &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['student_no', 'name', 'student_code', 'classroom_id', 'classroom', 'gender', 'updatedAt']);
-      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(studentId);
+      allow create: if isVerifiedUser() && isValidId(studentId) && isValidStudent(incoming());
+      allow update: if isVerifiedUser() && isValidId(studentId) && isValidStudent(incoming());
+      allow delete: if isVerifiedUser() && isValidId(studentId);
     }
 
     // Subjects collection
     match /subjects/{subjectId} {
       allow read: if true;
-      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(subjectId) && isValidSubject(incoming());
-      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(subjectId) && isValidSubject(incoming()) &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'code', 'credit', 'updatedAt']);
-      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(subjectId);
+      allow create: if isVerifiedUser() && isValidId(subjectId) && isValidSubject(incoming());
+      allow update: if isVerifiedUser() && isValidId(subjectId) && isValidSubject(incoming());
+      allow delete: if isVerifiedUser() && isValidId(subjectId);
     }
 
     // Terms collection
     match /terms/{termId} {
       allow read: if true;
-      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(termId) && isValidTerm(incoming());
-      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(termId) && isValidTerm(incoming()) &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'academic_year', 'max_score', 'updatedAt']);
-      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(termId);
+      allow create: if isVerifiedUser() && isValidId(termId) && isValidTerm(incoming());
+      allow update: if isVerifiedUser() && isValidId(termId) && isValidTerm(incoming());
+      allow delete: if isVerifiedUser() && isValidId(termId);
     }
 
     // Score items collection
     match /score_items/{scoreItemId} {
       allow read: if true;
-      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(scoreItemId) && isValidScoreItem(incoming());
-      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreItemId) && isValidScoreItem(incoming()) &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'max_score', 'category', 'updatedAt']);
-      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreItemId);
+      allow create: if isVerifiedUser() && isValidId(scoreItemId) && isValidScoreItem(incoming());
+      allow update: if isVerifiedUser() && isValidId(scoreItemId) && isValidScoreItem(incoming());
+      allow delete: if isVerifiedUser() && isValidId(scoreItemId);
     }
 
     // Scores collection
     match /scores/{scoreId} {
       allow read: if true;
-      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(scoreId) && isValidScore(incoming());
-      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreId) && isValidScore(incoming()) &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['score', 'status', 'note', 'updated_at', 'updatedAt']);
-      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(scoreId);
+      allow create: if isVerifiedUser() && isValidId(scoreId) && isValidScore(incoming());
+      allow update: if isVerifiedUser() && isValidId(scoreId) && isValidScore(incoming());
+      allow delete: if isVerifiedUser() && isValidId(scoreId);
     }
 
     // Certificates collection
     match /certificates/{certificateId} {
       allow read: if true;
-      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(certificateId) && isValidCertificate(incoming());
-      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(certificateId) && isValidCertificate(incoming());
-      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(certificateId);
+      allow create: if isVerifiedUser() && isValidId(certificateId) && isValidCertificate(incoming());
+      allow update: if isVerifiedUser() && isValidId(certificateId) && isValidCertificate(incoming());
+      allow delete: if isVerifiedUser() && isValidId(certificateId);
     }
 
     // Notification logs collection
     match /notification_logs/{logId} {
       allow read: if true;
-      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(logId) && isValidNotificationLog(incoming());
-      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(logId) && isValidNotificationLog(incoming());
-      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(logId);
+      allow create: if isVerifiedUser() && isValidId(logId) && isValidNotificationLog(incoming());
+      allow update: if isVerifiedUser() && isValidId(logId) && isValidNotificationLog(incoming());
+      allow delete: if isVerifiedUser() && isValidId(logId);
     }
 
     // Remedial records collection
     match /remedial_records/{recordId} {
       allow read: if true;
-      allow create: if isVerifiedUser() && incoming().ownerId == request.auth.uid && isValidId(recordId) && isValidRemedialRecord(incoming());
-      allow update: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(recordId) && isValidRemedialRecord(incoming());
-      allow delete: if isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin()) && isValidId(recordId);
+      allow create: if isVerifiedUser() && isValidId(recordId) && isValidRemedialRecord(incoming());
+      allow update: if isVerifiedUser() && isValidId(recordId) && isValidRemedialRecord(incoming());
+      allow delete: if isVerifiedUser() && isValidId(recordId);
+    }
+
+    // School settings collection
+    match /school_settings/{settingsId} {
+      allow read: if true;
+      allow write: if isVerifiedUser() && isValidId(settingsId);
     }
   }
 }
