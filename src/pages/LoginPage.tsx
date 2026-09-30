@@ -18,6 +18,7 @@ import {
 import { storage } from '../services/storage';
 import { User, Student } from '../types';
 import { signInWithGmail } from '../services/firebase';
+import { ThemeToggle } from '../components/ThemeToggle';
 import {
   formatCitizenId,
   cleanCitizenId,
@@ -190,9 +191,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
       {/* Top Banner / School Branding */}
       <header className="relative z-10 max-w-6xl w-full mx-auto text-center pt-2 pb-6">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-indigo-200 text-xs sm:text-sm font-medium mb-3 shadow-inner">
-          <School className="w-4 h-4 text-sky-300" />
-          <span>ระบบประเมินผลการเรียนรู้และวัดผลการศึกษา • ประจำปีการศึกษา 2569</span>
+        <div className="flex items-center justify-between sm:justify-center relative mb-3">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-indigo-200 text-xs sm:text-sm font-medium shadow-inner">
+            <School className="w-4 h-4 text-sky-300" />
+            <span>ระบบประเมินผลการเรียนรู้และวัดผลการศึกษา • ประจำปีการศึกษา 2569</span>
+          </div>
+          <div className="sm:absolute sm:right-0">
+            <ThemeToggle className="bg-white/10 hover:bg-white/20 border-white/20 text-white" />
+          </div>
         </div>
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
           ระบบบริหารจัดการคะแนนและผลการเรียน

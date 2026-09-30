@@ -1,4 +1,5 @@
 import React from 'react';
+import { ThemeToggle } from './ThemeToggle';
 import {
   PenLine,
   LayoutDashboard,
@@ -212,8 +213,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
+      {/* Night / Light Mode Toggle */}
+      <div className="mt-4">
+        <ThemeToggle showLabel className="w-full justify-start py-2 px-3 text-xs" />
+      </div>
+
       {/* Teacher Assistant Hint Box */}
-      <div className="mt-6 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
+      <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
         <div className="flex items-center gap-2 font-bold text-slate-700 mb-1">
           <HelpCircle className="w-4 h-4 text-indigo-500" />
           <span>คำแนะนำสำหรับคุณครู</span>

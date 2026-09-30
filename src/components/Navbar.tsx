@@ -2,6 +2,7 @@ import React from 'react';
 import { User, Term, Classroom, SchoolSettings } from '../types';
 import { SchoolLogo } from './SchoolLogo';
 import { SyncStatus } from '../services/realtimeSync';
+import { ThemeToggle } from './ThemeToggle';
 import {
   School,
   UserCircle,
@@ -221,6 +222,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <UserCircle className="w-6 h-6" />
                 </div>
               )}
+              {/* Theme Toggle (Night / Light Mode) */}
+              <ThemeToggle />
+
               {onOpenSchoolSettings && (
                 <button
                   type="button"

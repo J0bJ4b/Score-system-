@@ -18,6 +18,7 @@ import {
 import { formatCitizenId, cleanCitizenId } from '../utils/dmcParser';
 import { StudentProgressChart } from '../components/StudentProgressChart';
 import { SchoolLogo } from '../components/SchoolLogo';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { realtimeSync } from '../services/realtimeSync';
 import {
   Search,
@@ -245,6 +246,8 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
+
             {selectedStudent && (
               <button
                 type="button"

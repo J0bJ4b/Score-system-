@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   * {
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -16,6 +18,92 @@
   }
 }
 
+/* Global Smooth Dark Mode Transitions */
+html {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #0b1329;
+  color: #f1f5f9;
+}
+
+/* Dark Mode Overrides for surfaces, panels, tables, and inputs */
+html.dark .bg-white {
+  background-color: #172136 !important;
+  color: #f1f5f9;
+}
+
+html.dark .bg-slate-50 {
+  background-color: #0d1527 !important;
+}
+
+html.dark .bg-slate-100 {
+  background-color: #1c273e !important;
+}
+
+html.dark .border-slate-200 {
+  border-color: #2a3754 !important;
+}
+
+html.dark .border-slate-300 {
+  border-color: #3b4c6e !important;
+}
+
+html.dark .border-slate-100 {
+  border-color: #222e47 !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+  color: #f1f5f9 !important;
+}
+
+html.dark .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #111b2f !important;
+  color: #f8fafc !important;
+  border-color: #334366 !important;
+}
+
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  background-color: #0c1424 !important;
+  border-color: #818cf8 !important;
+}
+
+html.dark thead {
+  background-color: #1c273e !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark tr:hover {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+}
+
+html.dark .shadow-xl,
+html.dark .shadow-2xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+}
+
 .print-only {
   display: none;
 }
@@ -26,7 +114,11 @@
     margin: 6mm;
   }
 
-  body {
+  html,
+  body,
+  .bg-white,
+  .bg-slate-50,
+  .bg-slate-100 {
     background-color: white !important;
     color: black !important;
     font-size: 11pt !important;
