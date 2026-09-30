@@ -192,7 +192,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       <header className="relative z-10 max-w-6xl w-full mx-auto text-center pt-2 pb-6">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-indigo-200 text-xs sm:text-sm font-medium mb-3 shadow-inner">
           <School className="w-4 h-4 text-sky-300" />
-          <span>โรงเรียนบ้านป่าส่าน • ประจำปีการศึกษา 2569</span>
+          <span>ระบบประเมินผลการเรียนรู้และวัดผลการศึกษา • ประจำปีการศึกษา 2569</span>
         </div>
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
           ระบบบริหารจัดการคะแนนและผลการเรียน
@@ -562,18 +562,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 max-w-6xl w-full mx-auto pt-6 pb-2 text-center text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/10 mt-4">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>ระบบประมวลผลคะแนนและตัดเกรดมาตรฐานกระทรวงศึกษาธิการ</span>
+      <footer className="relative z-10 max-w-6xl w-full mx-auto pt-6 pb-3 text-center text-xs text-slate-300 flex flex-col md:flex-row items-center justify-between gap-3.5 border-t border-white/10 mt-6">
+        <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 text-slate-300 text-xs">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>ระบบประมวลผลคะแนนและตัดเกรดมาตรฐานกระทรวงศึกษาธิการ</span>
+          </div>
+          <span className="hidden sm:inline text-white/30">•</span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 font-bold text-xs shadow-xs">
+            <span>✨ พัฒนาโดยนายศุภวัฒน์ เมืองสิม</span>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-slate-400">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-            <span>เชื่อมต่อ Firebase Real-time</span>
+
+        <div className="flex items-center gap-3 text-slate-400 text-[11px] sm:text-xs">
+          <span className="flex items-center gap-1.5 text-emerald-300 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
+            <span>เชื่อมต่อคลาวด์ Real-time</span>
           </span>
           <span>•</span>
-          <span>รองรับ 2 ภาคเรียน (เทอม 1-2)</span>
+          <span>แยกข้อมูลอิสระ 100% ต่อบัญชี</span>
         </div>
       </footer>
     </div>
