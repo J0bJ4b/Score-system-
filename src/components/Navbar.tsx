@@ -191,18 +191,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Teacher Profile */}
             <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-              <div className="hidden lg:flex flex-col text-right max-w-[180px]">
+              <div className="hidden lg:flex flex-col text-right max-w-[200px]">
                 <div className="flex items-center justify-end gap-1.5">
                   <span className="text-xs sm:text-sm font-bold text-slate-800 truncate">{user.full_name}</span>
-                  {user.provider === 'google' && (
-                    <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.2 rounded bg-red-50 text-red-600 border border-red-200" title="เข้าสู่ระบบด้วย Gmail">
-                      Gmail
+                  {user.provider === 'google' ? (
+                    <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200" title="บัญชี Google ส่วนตัว (แยกข้อมูล 100%)">
+                      Google
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      ส่วนตัว
                     </span>
                   )}
                 </div>
-                <span className="text-[11px] text-slate-500 truncate">
-                  {user.email || 'ครูประจำชั้น'}
-                </span>
+                <div className="text-[10px] text-emerald-700 font-semibold truncate flex items-center justify-end gap-1">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                  <span>ข้อมูลแยกเฉพาะบัญชี 100%</span>
+                </div>
               </div>
               {user.photo_url ? (
                 <img

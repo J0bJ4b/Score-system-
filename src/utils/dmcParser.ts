@@ -1,3 +1,5 @@
+import { fixThaiMojibake } from './fileEncoding';
+
 /**
  * DMC (Data Management Center - สพฐ.) Parser and Filter Utility
  * คัดกรองและสกัดเฉพาะข้อมูลที่จำเป็นจากไฟล์ DMC ของกระทรวงศึกษาธิการ
@@ -137,6 +139,10 @@ function detectDmcHeaders(headers: string[]): DmcColumnMapping {
         col === 'ชื่อ-นามสกุล' ||
         col === 'ชื่อ สกุล' ||
         col === 'ชื่อนักเรียน' ||
+        col.includes('ชื่อ-สกุล') ||
+        col.includes('ชื่อ - สกุล') ||
+        col.includes('ชื่อ-นามสกุล') ||
+        col.includes('ชื่อ - นามสกุล') ||
         col === 'fullname' ||
         col === 'full name')
     ) {
@@ -242,6 +248,33 @@ function cleanStudentName(rawName: string): string {
   return name;
 }
 
+function splitDmcRow(line: string, delimiter: string): string[] {
+  if (delimiter === '\t') {
+    return line.split('\t').map((c) => c.replace(/^"|"$/g, '').trim());
+  }
+  const result: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delimiter && !inQuotes) {
+      result.push(cur.trim());
+      cur = '';
+    } else {
+      cur += char;
+    }
+  }
+  result.push(cur.trim());
+  return result.map((c) => c.replace(/^"|"$/g, '').trim());
+}
+
 /**
  * ฟังก์ชันหลักในการแยกวิเคราะห์ไฟล์ DMC หรือข้อความตารางที่คัดลอกมาจากระบบ DMC
  */
@@ -255,7 +288,10 @@ export function parseDmcContent(
   headerDetected: boolean;
   ignoredColumnsNotice: string;
 } {
-  const lines = rawContent
+  // กู้คืนตัวอักษรไทยที่อาจกลายเป็นภาษาต่างดาว (Mojibake Auto-Fix)
+  const cleanedContent = fixThaiMojibake(rawContent);
+
+  const lines = cleanedContent
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
@@ -282,7 +318,7 @@ export function parseDmcContent(
   }
 
   // ตรวจจับว่าแถวแรกเป็น Header หรือไม่
-  const firstRowCols = lines[0].split(delimiter).map((c) => c.replace(/^"|"$/g, '').trim());
+  const firstRowCols = splitDmcRow(lines[0], delimiter);
   const headerMapping = detectDmcHeaders(firstRowCols);
 
   const hasHeaderKeywords =
@@ -303,7 +339,7 @@ export function parseDmcContent(
 
   for (let i = startIndex; i < lines.length; i++) {
     const line = lines[i];
-    const cols = line.split(delimiter).map((c) => c.replace(/^"|"$/g, '').trim());
+    const cols = splitDmcRow(line, delimiter);
     if (cols.length === 0 || cols.every((c) => !c)) continue;
 
     let studentNo = results.length + 1;

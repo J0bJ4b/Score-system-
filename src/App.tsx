@@ -118,12 +118,17 @@ export default function App() {
   };
 
   // Auth handlers
-  const handleLoginSuccess = (user: User) => {
+  const handleLoginSuccess = async (user: User) => {
     setCurrentUser(user);
+    storage.setCurrentUser(user);
+    await realtimeSync.switchAccount(user.id, () => {
+      reloadData();
+    });
     reloadData();
   };
 
   const handleLogout = async () => {
+    realtimeSync.cleanup();
     if (currentUser?.provider === 'google') {
       try {
         await signOutFromFirebase();
@@ -136,7 +141,11 @@ export default function App() {
   };
 
   const handleResetData = () => {
-    if (window.confirm('คุณต้องการรีเซ็ตข้อมูลเป็นตัวอย่างเริ่มต้น (นักเรียน ป.5/1 และ ป.6/1) หรือไม่?')) {
+    if (
+      window.confirm(
+        'คุณต้องการรีเซ็ตข้อมูลเฉพาะของบัญชีนี้เป็นตัวอย่างเริ่มต้นหรือไม่?\n(ข้อมูลของบัญชีอื่นจะไม่ได้รับผลกระทบใดๆ ทั้งสิ้น)'
+      )
+    ) {
       storage.resetToDefault();
       reloadData();
     }

@@ -529,6 +529,62 @@ export function generateDefaultScores(students: Student[], items: ScoreItem[]): 
 
 // Data Store Class / Helpers
 export const storage = {
+  // Active Account ID
+  getActiveOwnerId(): string {
+    const current = this.getCurrentUser();
+    return current?.id || 'demo_teacher';
+  },
+
+  getUserKey(baseKey: string, specificOwnerId?: string): string {
+    const owner = specificOwnerId || this.getActiveOwnerId();
+    return `${baseKey}_${owner}`;
+  },
+
+  getUserList<T>(baseKey: string, initialDefaults: T[]): T[] {
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(baseKey, ownerId);
+    const raw = localStorage.getItem(userKey);
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        console.warn(`Error parsing ${userKey}:`, e);
+      }
+    }
+    // Check if legacy unpartitioned key exists for the first user
+    const legacyRaw = localStorage.getItem(baseKey);
+    if (legacyRaw) {
+      try {
+        const legacyItems: T[] = JSON.parse(legacyRaw);
+        if (Array.isArray(legacyItems) && legacyItems.length > 0) {
+          const tagged = legacyItems.map((item) =>
+            typeof item === 'object' && item !== null ? { ...item, ownerId } : item
+          );
+          localStorage.setItem(userKey, JSON.stringify(tagged));
+          return tagged;
+        }
+      } catch {}
+    }
+    // Otherwise tag initial defaults with ownerId
+    const taggedDefaults = initialDefaults.map((item) =>
+      typeof item === 'object' && item !== null ? { ...item, ownerId } : item
+    );
+    localStorage.setItem(userKey, JSON.stringify(taggedDefaults));
+    return taggedDefaults;
+  },
+
+  saveUserList<T>(baseKey: string, items: T[], syncCollectionName?: string) {
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(baseKey, ownerId);
+    const tagged = items.map((item) =>
+      typeof item === 'object' && item !== null ? { ...item, ownerId } : item
+    );
+    localStorage.setItem(userKey, JSON.stringify(tagged));
+    if (syncCollectionName) {
+      realtimeSync.syncDocsBatch(syncCollectionName, tagged);
+    }
+  },
+
   // Initialize storage if empty
   init() {
     if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
@@ -560,90 +616,20 @@ export const storage = {
         );
       }
     }
-    if (!localStorage.getItem(STORAGE_KEYS.CLASSROOMS)) {
-      localStorage.setItem(STORAGE_KEYS.CLASSROOMS, JSON.stringify(INITIAL_CLASSROOMS));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID)) {
-      localStorage.setItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID, INITIAL_CLASSROOMS[0].id);
-    }
-    const classroomsRaw = localStorage.getItem(STORAGE_KEYS.CLASSROOMS);
-    if (classroomsRaw) {
-      const classrooms: Classroom[] = JSON.parse(classroomsRaw);
-      const migratedClassrooms = classrooms.map((classroom) =>
-        classroom.academic_year === '2568' ? { ...classroom, academic_year: '2569' } : classroom
-      );
-      if (JSON.stringify(classrooms) !== JSON.stringify(migratedClassrooms)) {
-        localStorage.setItem(STORAGE_KEYS.CLASSROOMS, JSON.stringify(migratedClassrooms));
-      }
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.TERMS)) {
-      localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(INITIAL_TERMS));
-    }
-    const termsRaw = localStorage.getItem(STORAGE_KEYS.TERMS);
-    if (termsRaw) {
-      const terms: Term[] = JSON.parse(termsRaw);
-      const migratedTerms = terms.map((term) =>
-        term.academic_year === '2568' ? { ...term, academic_year: '2569' } : term
-      );
-      if (JSON.stringify(terms) !== JSON.stringify(migratedTerms)) {
-        localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(migratedTerms));
-      }
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.SUBJECTS)) {
-      localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(INITIAL_SUBJECTS));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.STUDENTS)) {
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(INITIAL_STUDENTS));
-    } else {
-      const studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      if (studentsRaw) {
-        try {
-          const storedStudents: Student[] = JSON.parse(studentsRaw);
-          let changed = false;
-          const updatedStudents = storedStudents.map((s) => {
-            if (!s.student_code || s.student_code.length < 13) {
-              changed = true;
-              const initMatch = INITIAL_STUDENTS.find((is) => is.id === s.id);
-              const newCode = initMatch
-                ? initMatch.student_code
-                : `15099${String(s.classroom?.includes('6') ? 60100 : 50100) + String(s.student_no).padStart(2, '0')}`.padEnd(13, '0');
-              return { ...s, student_code: newCode };
-            }
-            return s;
-          });
-          if (changed) {
-            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
-          }
-        } catch (e) {
-          console.warn('Student migration check notice:', e);
-        }
-      }
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.SCORE_ITEMS)) {
-      const items = generateDefaultScoreItems(INITIAL_SUBJECTS, INITIAL_TERMS);
-      localStorage.setItem(STORAGE_KEYS.SCORE_ITEMS, JSON.stringify(items));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.SCORES)) {
-      const students = INITIAL_STUDENTS;
-      const items = generateDefaultScoreItems(INITIAL_SUBJECTS, INITIAL_TERMS);
-      const scores = generateDefaultScores(students, items);
-      localStorage.setItem(STORAGE_KEYS.SCORES, JSON.stringify(scores));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.CERTIFICATES)) {
-      localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(INITIAL_CERTIFICATES));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.CERTIFICATE_SETTINGS)) {
-      localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(INITIAL_CERTIFICATE_SETTINGS));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS)) {
-      localStorage.setItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS, JSON.stringify(INITIAL_LINE_NOTIFY_SETTINGS));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.NOTIFICATION_LOGS)) {
-      localStorage.setItem(STORAGE_KEYS.NOTIFICATION_LOGS, JSON.stringify(INITIAL_NOTIFICATION_LOGS));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.REMEDIAL_RECORDS)) {
-      localStorage.setItem(STORAGE_KEYS.REMEDIAL_RECORDS, JSON.stringify(INITIAL_REMEDIAL_RECORDS));
-    }
+
+    // Pre-warm active user's partition
+    this.getClassrooms();
+    this.getTerms();
+    this.getSubjects();
+    this.getAllStudents();
+    this.getScoreItems();
+    this.getScores();
+    this.getAllCertificates();
+    this.getCertificateSettings();
+    this.getSchoolSettings();
+    this.getLineNotifySettings();
+    this.getNotificationLogs();
+    this.getAllRemedialRecords();
   },
 
   // Auth
@@ -655,8 +641,16 @@ export const storage = {
   setCurrentUser(user: User | null) {
     if (user) {
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+      // Pre-warm storage keys for this user
+      const ownerId = user.id;
+      this.getUserList<Classroom>(STORAGE_KEYS.CLASSROOMS, INITIAL_CLASSROOMS);
+      this.getUserList<Term>(STORAGE_KEYS.TERMS, INITIAL_TERMS);
+      this.getUserList<Subject>(STORAGE_KEYS.SUBJECTS, INITIAL_SUBJECTS);
+      this.getUserList<Student>(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS);
+      realtimeSync.switchAccount(ownerId);
     } else {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      realtimeSync.cleanup();
     }
   },
 
@@ -676,21 +670,21 @@ export const storage = {
 
   // Classrooms
   getClassrooms(): Classroom[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.CLASSROOMS);
-    return raw ? JSON.parse(raw) : INITIAL_CLASSROOMS;
+    return this.getUserList<Classroom>(STORAGE_KEYS.CLASSROOMS, INITIAL_CLASSROOMS);
   },
 
   saveClassrooms(classrooms: Classroom[]) {
-    localStorage.setItem(STORAGE_KEYS.CLASSROOMS, JSON.stringify(classrooms));
-    realtimeSync.syncDocsBatch('classrooms', classrooms);
+    this.saveUserList<Classroom>(STORAGE_KEYS.CLASSROOMS, classrooms, 'classrooms');
   },
 
   addClassroom(classroom: Omit<Classroom, 'id'>): Classroom {
     const classrooms = this.getClassrooms();
     const id = `room-${Date.now()}`;
+    const ownerId = this.getActiveOwnerId();
     const newClassroom: Classroom = {
       ...classroom,
       id,
+      ownerId,
     };
     classrooms.push(newClassroom);
     this.saveClassrooms(classrooms);
@@ -701,7 +695,7 @@ export const storage = {
     const classrooms = this.getClassrooms();
     const idx = classrooms.findIndex(c => c.id === classroom.id);
     if (idx !== -1) {
-      classrooms[idx] = classroom;
+      classrooms[idx] = { ...classroom, ownerId: this.getActiveOwnerId() };
       this.saveClassrooms(classrooms);
 
       // Also update student names in this classroom
@@ -722,6 +716,7 @@ export const storage = {
   deleteClassroom(classroomId: string) {
     const classrooms = this.getClassrooms().filter(c => c.id !== classroomId);
     this.saveClassrooms(classrooms);
+    realtimeSync.deleteDoc('classrooms', classroomId);
 
     // Also delete students in this classroom and their scores
     const studentsInRoom = this.getAllStudents().filter(s => s.classroom_id === classroomId);
@@ -742,20 +737,25 @@ export const storage = {
   },
 
   getCurrentClassroomId(): string {
-    const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID);
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.CURRENT_CLASSROOM_ID, ownerId);
+    const saved = localStorage.getItem(userKey);
     if (saved) return saved;
     const classrooms = this.getClassrooms();
-    return classrooms[0]?.id || 'room-p5-1';
+    const defaultId = classrooms[0]?.id || 'room-p5-1';
+    localStorage.setItem(userKey, defaultId);
+    return defaultId;
   },
 
   setCurrentClassroomId(id: string) {
-    localStorage.setItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID, id);
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.CURRENT_CLASSROOM_ID, ownerId);
+    localStorage.setItem(userKey, id);
   },
 
   // Students
   getAllStudents(): Student[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-    const list: Student[] = raw ? JSON.parse(raw) : [];
+    const list = this.getUserList<Student>(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS);
     return list.sort((a, b) => a.student_no - b.student_no);
   },
 
@@ -778,15 +778,16 @@ export const storage = {
   },
 
   saveStudents(students: Student[]) {
-    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-    realtimeSync.syncDocsBatch('students', students);
+    this.saveUserList<Student>(STORAGE_KEYS.STUDENTS, students, 'students');
   },
 
   addStudent(student: Omit<Student, 'id'>): Student {
     const allStudents = this.getAllStudents();
+    const ownerId = this.getActiveOwnerId();
     const newStudent: Student = {
       ...student,
       id: `stu-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ownerId,
     };
     allStudents.push(newStudent);
     allStudents.sort((a, b) => a.student_no - b.student_no);
@@ -798,7 +799,7 @@ export const storage = {
     const allStudents = this.getAllStudents();
     const idx = allStudents.findIndex(s => s.id === student.id);
     if (idx !== -1) {
-      allStudents[idx] = student;
+      allStudents[idx] = { ...student, ownerId: this.getActiveOwnerId() };
       allStudents.sort((a, b) => a.student_no - b.student_no);
       this.saveStudents(allStudents);
     }
@@ -807,6 +808,7 @@ export const storage = {
   deleteStudent(studentId: string) {
     const allStudents = this.getAllStudents().filter(s => s.id !== studentId);
     this.saveStudents(allStudents);
+    realtimeSync.deleteDoc('students', studentId);
     // Also remove associated scores
     const scores = this.getScores().filter(s => s.student_id !== studentId);
     this.saveScores(scores);
@@ -825,6 +827,9 @@ export const storage = {
     const remainingStudents = allStudents.filter((s) => !idsToDelete.has(s.id));
     this.saveStudents(remainingStudents);
 
+    // Delete in cloud
+    idsToDelete.forEach((id) => realtimeSync.deleteDoc('students', id));
+
     const remainingScores = this.getScores().filter((s) => !idsToDelete.has(s.student_id));
     this.saveScores(remainingScores);
 
@@ -840,20 +845,20 @@ export const storage = {
 
   // Subjects
   getSubjects(): Subject[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.SUBJECTS);
-    return raw ? JSON.parse(raw) : [];
+    return this.getUserList<Subject>(STORAGE_KEYS.SUBJECTS, INITIAL_SUBJECTS);
   },
 
   saveSubjects(subjects: Subject[]) {
-    localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(subjects));
-    realtimeSync.syncDocsBatch('subjects', subjects);
+    this.saveUserList<Subject>(STORAGE_KEYS.SUBJECTS, subjects, 'subjects');
   },
 
   addSubject(subject: Omit<Subject, 'id'>): Subject {
     const subjects = this.getSubjects();
+    const ownerId = this.getActiveOwnerId();
     const newSubject: Subject = {
       ...subject,
       id: `sub-${Date.now()}`,
+      ownerId,
     };
     subjects.push(newSubject);
     this.saveSubjects(subjects);
@@ -863,11 +868,11 @@ export const storage = {
     const items = this.getScoreItems();
     for (const term of terms) {
       items.push(
-        { id: `item-${newSubject.id}-${term.id}-1`, subject_id: newSubject.id, term_id: term.id, name: 'ใบงานที่ 1', max_score: 10, category: 'regular' },
-        { id: `item-${newSubject.id}-${term.id}-2`, subject_id: newSubject.id, term_id: term.id, name: 'ใบงานที่ 2', max_score: 10, category: 'regular' },
-        { id: `item-${newSubject.id}-${term.id}-3`, subject_id: newSubject.id, term_id: term.id, name: 'ชิ้นงาน/จิตพิสัย', max_score: 10, category: 'regular' },
-        { id: `item-${newSubject.id}-${term.id}-mid`, subject_id: newSubject.id, term_id: term.id, name: 'สอบกลางภาค', max_score: 10, category: 'midterm' },
-        { id: `item-${newSubject.id}-${term.id}-fin`, subject_id: newSubject.id, term_id: term.id, name: 'สอบปลายภาค', max_score: 10, category: 'final' }
+        { id: `item-${newSubject.id}-${term.id}-1`, subject_id: newSubject.id, term_id: term.id, name: 'ใบงานที่ 1', max_score: 10, category: 'regular', ownerId },
+        { id: `item-${newSubject.id}-${term.id}-2`, subject_id: newSubject.id, term_id: term.id, name: 'ใบงานที่ 2', max_score: 10, category: 'regular', ownerId },
+        { id: `item-${newSubject.id}-${term.id}-3`, subject_id: newSubject.id, term_id: term.id, name: 'ชิ้นงาน/จิตพิสัย', max_score: 10, category: 'regular', ownerId },
+        { id: `item-${newSubject.id}-${term.id}-mid`, subject_id: newSubject.id, term_id: term.id, name: 'สอบกลางภาค', max_score: 10, category: 'midterm', ownerId },
+        { id: `item-${newSubject.id}-${term.id}-fin`, subject_id: newSubject.id, term_id: term.id, name: 'สอบปลายภาค', max_score: 10, category: 'final', ownerId }
       );
     }
     this.saveScoreItems(items);
@@ -879,7 +884,7 @@ export const storage = {
     const subjects = this.getSubjects();
     const idx = subjects.findIndex(s => s.id === subject.id);
     if (idx !== -1) {
-      subjects[idx] = subject;
+      subjects[idx] = { ...subject, ownerId: this.getActiveOwnerId() };
       this.saveSubjects(subjects);
     }
   },
@@ -887,10 +892,14 @@ export const storage = {
   deleteSubject(subjectId: string) {
     const subjects = this.getSubjects().filter(s => s.id !== subjectId);
     this.saveSubjects(subjects);
+    realtimeSync.deleteDoc('subjects', subjectId);
+
     // Remove score items and scores for this subject
     const items = this.getScoreItems();
     const itemsToDelete = items.filter(it => it.subject_id === subjectId).map(it => it.id);
     this.saveScoreItems(items.filter(it => it.subject_id !== subjectId));
+
+    itemsToDelete.forEach((id) => realtimeSync.deleteDoc('score_items', id));
 
     const scores = this.getScores().filter(sc => !itemsToDelete.includes(sc.score_item_id));
     this.saveScores(scores);
@@ -898,38 +907,40 @@ export const storage = {
 
   // Terms
   getTerms(): Term[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.TERMS);
-    return raw ? JSON.parse(raw) : INITIAL_TERMS;
+    return this.getUserList<Term>(STORAGE_KEYS.TERMS, INITIAL_TERMS);
   },
 
   saveTerms(terms: Term[]) {
-    localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(terms));
-    realtimeSync.syncDocsBatch('terms', terms);
+    this.saveUserList<Term>(STORAGE_KEYS.TERMS, terms, 'terms');
   },
 
   // Score Items
   getScoreItems(subjectId?: string, termId?: string): ScoreItem[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.SCORE_ITEMS);
-    let items: ScoreItem[] = raw ? JSON.parse(raw) : [];
+    const items = this.getUserList<ScoreItem>(
+      STORAGE_KEYS.SCORE_ITEMS,
+      generateDefaultScoreItems(INITIAL_SUBJECTS, INITIAL_TERMS)
+    );
+    let filtered = items;
     if (subjectId) {
-      items = items.filter(i => i.subject_id === subjectId);
+      filtered = filtered.filter(i => i.subject_id === subjectId);
     }
     if (termId) {
-      items = items.filter(i => i.term_id === termId);
+      filtered = filtered.filter(i => i.term_id === termId);
     }
-    return items;
+    return filtered;
   },
 
   saveScoreItems(items: ScoreItem[]) {
-    localStorage.setItem(STORAGE_KEYS.SCORE_ITEMS, JSON.stringify(items));
-    realtimeSync.syncDocsBatch('score_items', items);
+    this.saveUserList<ScoreItem>(STORAGE_KEYS.SCORE_ITEMS, items, 'score_items');
   },
 
   addScoreItem(item: Omit<ScoreItem, 'id'>): ScoreItem {
     const items = this.getScoreItems();
+    const ownerId = this.getActiveOwnerId();
     const newItem: ScoreItem = {
       ...item,
       id: `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ownerId,
     };
     items.push(newItem);
     this.saveScoreItems(items);
@@ -940,7 +951,7 @@ export const storage = {
     const items = this.getScoreItems();
     const idx = items.findIndex(i => i.id === item.id);
     if (idx !== -1) {
-      items[idx] = item;
+      items[idx] = { ...item, ownerId: this.getActiveOwnerId() };
       this.saveScoreItems(items);
     }
   },
@@ -948,23 +959,27 @@ export const storage = {
   deleteScoreItem(itemId: string) {
     const items = this.getScoreItems().filter(i => i.id !== itemId);
     this.saveScoreItems(items);
+    realtimeSync.deleteDoc('score_items', itemId);
+
     const scores = this.getScores().filter(s => s.score_item_id !== itemId);
     this.saveScores(scores);
   },
 
   // Scores
   getScores(): Score[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.SCORES);
-    return raw ? JSON.parse(raw) : [];
+    return this.getUserList<Score>(
+      STORAGE_KEYS.SCORES,
+      generateDefaultScores(INITIAL_STUDENTS, generateDefaultScoreItems(INITIAL_SUBJECTS, INITIAL_TERMS))
+    );
   },
 
   saveScores(scores: Score[]) {
-    localStorage.setItem(STORAGE_KEYS.SCORES, JSON.stringify(scores));
-    realtimeSync.syncDocsBatch('scores', scores);
+    this.saveUserList<Score>(STORAGE_KEYS.SCORES, scores, 'scores');
   },
 
   upsertScore(score: Omit<Score, 'id'> & { id?: string }): Score {
     const scores = this.getScores();
+    const ownerId = this.getActiveOwnerId();
     const existingIndex = scores.findIndex(
       s => s.student_id === score.student_id && s.score_item_id === score.score_item_id
     );
@@ -976,6 +991,7 @@ export const storage = {
         score: score.score,
         status: score.status,
         note: score.note,
+        ownerId,
         updated_at: now,
       };
       scores[existingIndex] = updated;
@@ -989,6 +1005,7 @@ export const storage = {
         score: score.score,
         status: score.status,
         note: score.note,
+        ownerId,
         updated_at: now,
       };
       scores.push(newScore);
@@ -999,6 +1016,7 @@ export const storage = {
 
   batchUpsertScores(newScores: Array<Omit<Score, 'id'> & { id?: string }>) {
     const currentScores = this.getScores();
+    const ownerId = this.getActiveOwnerId();
     const scoreMap = new Map<string, Score>();
     currentScores.forEach(s => scoreMap.set(`${s.student_id}_${s.score_item_id}`, s));
 
@@ -1012,6 +1030,7 @@ export const storage = {
           score: s.score,
           status: s.status,
           note: s.note,
+          ownerId,
           updated_at: now,
         });
       } else {
@@ -1022,6 +1041,7 @@ export const storage = {
           score: s.score,
           status: s.status,
           note: s.note,
+          ownerId,
           updated_at: now,
         });
       }
@@ -1036,8 +1056,7 @@ export const storage = {
 
   // Certificates
   getCertificates(classroomId?: string): Certificate[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.CERTIFICATES);
-    const list: Certificate[] = raw ? JSON.parse(raw) : INITIAL_CERTIFICATES;
+    const list = this.getAllCertificates();
     if (classroomId) {
       return list.filter(c => !c.classroom_id || c.classroom_id === classroomId);
     }
@@ -1045,20 +1064,20 @@ export const storage = {
   },
 
   getAllCertificates(): Certificate[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.CERTIFICATES);
-    return raw ? JSON.parse(raw) : INITIAL_CERTIFICATES;
+    return this.getUserList<Certificate>(STORAGE_KEYS.CERTIFICATES, INITIAL_CERTIFICATES);
   },
 
   saveCertificates(certificates: Certificate[]) {
-    localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(certificates));
-    realtimeSync.syncDocsBatch('certificates', certificates);
+    this.saveUserList<Certificate>(STORAGE_KEYS.CERTIFICATES, certificates, 'certificates');
   },
 
   addCertificate(cert: Omit<Certificate, 'id'>): Certificate {
     const certs = this.getAllCertificates();
+    const ownerId = this.getActiveOwnerId();
     const newCert: Certificate = {
       ...cert,
       id: `cert-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ownerId,
       createdAt: cert.createdAt || new Date().toISOString(),
     };
     certs.unshift(newCert);
@@ -1068,11 +1087,13 @@ export const storage = {
 
   batchAddCertificates(newCerts: Array<Omit<Certificate, 'id'>>) {
     const certs = this.getAllCertificates();
+    const ownerId = this.getActiveOwnerId();
     const created: Certificate[] = [];
     newCerts.forEach((c, index) => {
       const item: Certificate = {
         ...c,
         id: `cert-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`,
+        ownerId,
         createdAt: c.createdAt || new Date().toISOString(),
       };
       certs.unshift(item);
@@ -1086,7 +1107,7 @@ export const storage = {
     const certs = this.getAllCertificates();
     const idx = certs.findIndex(c => c.id === cert.id);
     if (idx !== -1) {
-      certs[idx] = { ...cert, updatedAt: new Date().toISOString() };
+      certs[idx] = { ...cert, ownerId: this.getActiveOwnerId(), updatedAt: new Date().toISOString() };
       this.saveCertificates(certs);
     }
   },
@@ -1098,28 +1119,63 @@ export const storage = {
   },
 
   getCertificateSettings(): CertificateSettings {
-    const raw = localStorage.getItem(STORAGE_KEYS.CERTIFICATE_SETTINGS);
-    return raw ? JSON.parse(raw) : INITIAL_CERTIFICATE_SETTINGS;
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.CERTIFICATE_SETTINGS, ownerId);
+    const raw = localStorage.getItem(userKey);
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {}
+    }
+    const legacyRaw = localStorage.getItem(STORAGE_KEYS.CERTIFICATE_SETTINGS);
+    if (legacyRaw) {
+      try {
+        const parsed = JSON.parse(legacyRaw);
+        localStorage.setItem(userKey, JSON.stringify(parsed));
+        return parsed;
+      } catch {}
+    }
+    localStorage.setItem(userKey, JSON.stringify(INITIAL_CERTIFICATE_SETTINGS));
+    return INITIAL_CERTIFICATE_SETTINGS;
   },
 
   saveCertificateSettings(settings: CertificateSettings) {
-    localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(settings));
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.CERTIFICATE_SETTINGS, ownerId);
+    localStorage.setItem(userKey, JSON.stringify(settings));
   },
 
   // School Settings (Name, Logo, Director, Affiliation, Address, etc.)
   getSchoolSettings(): SchoolSettings {
-    const raw = localStorage.getItem(STORAGE_KEYS.SCHOOL_SETTINGS);
-    if (!raw) return { ...INITIAL_SCHOOL_SETTINGS };
-    try {
-      return { ...INITIAL_SCHOOL_SETTINGS, ...JSON.parse(raw) };
-    } catch {
-      return { ...INITIAL_SCHOOL_SETTINGS };
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.SCHOOL_SETTINGS, ownerId);
+    const raw = localStorage.getItem(userKey);
+    if (raw) {
+      try {
+        return { ...INITIAL_SCHOOL_SETTINGS, ...JSON.parse(raw), ownerId };
+      } catch {}
     }
+    const legacyRaw = localStorage.getItem(STORAGE_KEYS.SCHOOL_SETTINGS);
+    if (legacyRaw) {
+      try {
+        const parsed = JSON.parse(legacyRaw);
+        const tagged = { ...INITIAL_SCHOOL_SETTINGS, ...parsed, ownerId };
+        localStorage.setItem(userKey, JSON.stringify(tagged));
+        return tagged;
+      } catch {}
+    }
+    const initial = { ...INITIAL_SCHOOL_SETTINGS, ownerId };
+    localStorage.setItem(userKey, JSON.stringify(initial));
+    return initial;
   },
 
   saveSchoolSettings(settings: SchoolSettings) {
-    localStorage.setItem(STORAGE_KEYS.SCHOOL_SETTINGS, JSON.stringify(settings));
-    realtimeSync.syncSchoolSettings(settings);
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.SCHOOL_SETTINGS, ownerId);
+    const tagged: SchoolSettings = { ...settings, ownerId };
+    localStorage.setItem(userKey, JSON.stringify(tagged));
+    realtimeSync.syncSchoolSettings(tagged);
+
     // Keep user's school_name in sync
     const currentUser = this.getCurrentUser();
     if (currentUser && settings.school_name) {
@@ -1144,43 +1200,55 @@ export const storage = {
 
   // Multi-Channel Communication Settings (LINE, Telegram, Discord, LINE OA)
   getLineNotifySettings(): LineNotifySettings {
-    const raw = localStorage.getItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS);
-    if (!raw) return { ...INITIAL_LINE_NOTIFY_SETTINGS };
-    try {
-      const parsed = JSON.parse(raw);
-      return {
-        ...INITIAL_LINE_NOTIFY_SETTINGS,
-        ...parsed,
-        channel: parsed.channel || (parsed.token ? 'line_notify' : 'line_share'),
-      };
-    } catch {
-      return { ...INITIAL_LINE_NOTIFY_SETTINGS };
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.LINE_NOTIFY_SETTINGS, ownerId);
+    const raw = localStorage.getItem(userKey);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        return {
+          ...INITIAL_LINE_NOTIFY_SETTINGS,
+          ...parsed,
+          channel: parsed.channel || (parsed.token ? 'line_notify' : 'line_share'),
+        };
+      } catch {}
     }
+    const legacyRaw = localStorage.getItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS);
+    if (legacyRaw) {
+      try {
+        const parsed = JSON.parse(legacyRaw);
+        localStorage.setItem(userKey, JSON.stringify(parsed));
+        return { ...INITIAL_LINE_NOTIFY_SETTINGS, ...parsed };
+      } catch {}
+    }
+    return { ...INITIAL_LINE_NOTIFY_SETTINGS };
   },
 
   saveLineNotifySettings(settings: LineNotifySettings) {
-    localStorage.setItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS, JSON.stringify(settings));
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.LINE_NOTIFY_SETTINGS, ownerId);
+    localStorage.setItem(userKey, JSON.stringify(settings));
   },
 
   // Notification History Logs
   getNotificationLogs(): NotificationLog[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.NOTIFICATION_LOGS);
-    return raw ? JSON.parse(raw) : INITIAL_NOTIFICATION_LOGS;
+    return this.getUserList<NotificationLog>(STORAGE_KEYS.NOTIFICATION_LOGS, INITIAL_NOTIFICATION_LOGS);
   },
 
   saveNotificationLogs(logs: NotificationLog[]) {
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATION_LOGS, JSON.stringify(logs));
+    this.saveUserList<NotificationLog>(STORAGE_KEYS.NOTIFICATION_LOGS, logs, 'notification_logs');
   },
 
   addNotificationLog(log: Omit<NotificationLog, 'id'>): NotificationLog {
     const logs = this.getNotificationLogs();
+    const ownerId = this.getActiveOwnerId();
     const newLog: NotificationLog = {
       ...log,
       id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ownerId,
       timestamp: log.timestamp || new Date().toISOString(),
     };
     logs.unshift(newLog);
-    // Keep max 100 latest logs
     if (logs.length > 100) {
       logs.splice(100);
     }
@@ -1191,6 +1259,7 @@ export const storage = {
   deleteNotificationLog(id: string) {
     const logs = this.getNotificationLogs().filter((l) => l.id !== id);
     this.saveNotificationLogs(logs);
+    realtimeSync.deleteDoc('notification_logs', id);
   },
 
   clearNotificationLogs() {
@@ -1199,7 +1268,9 @@ export const storage = {
 
   // Custom Score Weighting & Evaluation Configuration
   getScoreWeightingConfigs(): Record<string, ScoreWeightingConfig> {
-    const raw = localStorage.getItem(STORAGE_KEYS.SCORE_WEIGHTING_CONFIGS);
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.SCORE_WEIGHTING_CONFIGS, ownerId);
+    const raw = localStorage.getItem(userKey);
     return raw ? JSON.parse(raw) : {};
   },
 
@@ -1211,17 +1282,23 @@ export const storage = {
   saveSubjectWeightingConfig(subjectId: string, config: ScoreWeightingConfig) {
     const configs = this.getScoreWeightingConfigs();
     configs[subjectId] = config;
-    localStorage.setItem(STORAGE_KEYS.SCORE_WEIGHTING_CONFIGS, JSON.stringify(configs));
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.SCORE_WEIGHTING_CONFIGS, ownerId);
+    localStorage.setItem(userKey, JSON.stringify(configs));
   },
 
   // Custom Grading Scale Settings
   getGradingScaleSettings(): CustomGradingScaleSettings {
-    const raw = localStorage.getItem(STORAGE_KEYS.GRADING_SCALE_SETTINGS);
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.GRADING_SCALE_SETTINGS, ownerId);
+    const raw = localStorage.getItem(userKey);
     return raw ? JSON.parse(raw) : DEFAULT_GRADING_SCALE_SETTINGS;
   },
 
   saveGradingScaleSettings(settings: CustomGradingScaleSettings) {
-    localStorage.setItem(STORAGE_KEYS.GRADING_SCALE_SETTINGS, JSON.stringify(settings));
+    const ownerId = this.getActiveOwnerId();
+    const userKey = this.getUserKey(STORAGE_KEYS.GRADING_SCALE_SETTINGS, ownerId);
+    localStorage.setItem(userKey, JSON.stringify(settings));
   },
 
   // Apply custom weighting scheme to generate balanced score items (Sum = 50 per term)
@@ -1237,6 +1314,7 @@ export const storage = {
     const termsToApply = termId ? [termId] : this.getTerms().map((t) => t.id);
 
     let allItems = this.getScoreItems();
+    const ownerId = this.getActiveOwnerId();
 
     subjectsToApply.forEach((subId) => {
       // Save config
@@ -1248,20 +1326,16 @@ export const storage = {
           (item) => !(item.subject_id === subId && item.term_id === tId)
         );
 
-        // Convert percentage ratio to 50 max score points per term
-        // e.g. Ratio 70:15:15 -> Regular 35, Midterm 7.5 (round to 7 or 8), Final 7.5 (round to 8 or 7)
-        // or Ratio 60:20:20 -> Regular 30, Midterm 10, Final 10
         const totalTermPoints = 50;
         const totalRatio = config.regular_ratio + config.midterm_ratio + config.final_ratio || 100;
 
         const regularTarget = Math.round((config.regular_ratio / totalRatio) * totalTermPoints);
         const midtermTarget = Math.round((config.midterm_ratio / totalRatio) * totalTermPoints);
-        // Ensure exact sum of 50
         const finalTarget = totalTermPoints - regularTarget - midtermTarget;
 
         const newItems: ScoreItem[] = [];
 
-        // 1. Regular Score Items (ชิ้นงาน/คะแนนเก็บ)
+        // 1. Regular Score Items
         const numReg = Math.max(1, config.num_regular_items || 3);
         const perReg = Math.floor(regularTarget / numReg);
         const regRemainder = regularTarget % numReg;
@@ -1275,10 +1349,11 @@ export const storage = {
             name: `ใบงาน/ชิ้นงานที่ ${i}`,
             max_score: maxScore,
             category: 'regular',
+            ownerId,
           });
         }
 
-        // 2. Midterm Items (สอบกลางภาค)
+        // 2. Midterm Items
         const numMid = Math.max(1, config.num_midterm_items || 1);
         const perMid = Math.floor(midtermTarget / numMid);
         const midRemainder = midtermTarget % numMid;
@@ -1292,10 +1367,11 @@ export const storage = {
             name: numMid > 1 ? `สอบกลางภาค ตอนที่ ${i}` : 'สอบวัดผลกลางภาค',
             max_score: maxScore,
             category: 'midterm',
+            ownerId,
           });
         }
 
-        // 3. Final Items (สอบปลายภาค)
+        // 3. Final Items
         const numFin = Math.max(1, config.num_final_items || 1);
         const perFin = Math.floor(finalTarget / numFin);
         const finRemainder = finalTarget % numFin;
@@ -1309,6 +1385,7 @@ export const storage = {
             name: numFin > 1 ? `สอบปลายภาค ตอนที่ ${i}` : 'สอบวัดผลปลายภาค',
             max_score: maxScore,
             category: 'final',
+            ownerId,
           });
         }
 
@@ -1321,8 +1398,7 @@ export const storage = {
 
   // Remedial & Re-exam Tracking
   getRemedialRecords(classroomId?: string): RemedialRecord[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.REMEDIAL_RECORDS);
-    const list: RemedialRecord[] = raw ? JSON.parse(raw) : INITIAL_REMEDIAL_RECORDS;
+    const list = this.getAllRemedialRecords();
     if (classroomId) {
       return list.filter((r) => !r.classroom_id || r.classroom_id === classroomId);
     }
@@ -1330,20 +1406,20 @@ export const storage = {
   },
 
   getAllRemedialRecords(): RemedialRecord[] {
-    const raw = localStorage.getItem(STORAGE_KEYS.REMEDIAL_RECORDS);
-    return raw ? JSON.parse(raw) : INITIAL_REMEDIAL_RECORDS;
+    return this.getUserList<RemedialRecord>(STORAGE_KEYS.REMEDIAL_RECORDS, INITIAL_REMEDIAL_RECORDS);
   },
 
   saveRemedialRecords(records: RemedialRecord[]) {
-    localStorage.setItem(STORAGE_KEYS.REMEDIAL_RECORDS, JSON.stringify(records));
-    realtimeSync.syncDocsBatch('remedial_records', records);
+    this.saveUserList<RemedialRecord>(STORAGE_KEYS.REMEDIAL_RECORDS, records, 'remedial_records');
   },
 
   addRemedialRecord(record: Omit<RemedialRecord, 'id'>): RemedialRecord {
     const records = this.getAllRemedialRecords();
+    const ownerId = this.getActiveOwnerId();
     const newRecord: RemedialRecord = {
       ...record,
       id: `rem-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ownerId,
       createdAt: record.createdAt || new Date().toISOString(),
     };
     records.unshift(newRecord);
@@ -1353,11 +1429,13 @@ export const storage = {
 
   batchAddRemedialRecords(newRecords: Array<Omit<RemedialRecord, 'id'>>): RemedialRecord[] {
     const records = this.getAllRemedialRecords();
+    const ownerId = this.getActiveOwnerId();
     const created: RemedialRecord[] = [];
     newRecords.forEach((r, idx) => {
       const item: RemedialRecord = {
         ...r,
         id: `rem-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+        ownerId,
         createdAt: r.createdAt || new Date().toISOString(),
       };
       records.unshift(item);
@@ -1372,6 +1450,7 @@ export const storage = {
     const idx = records.findIndex((r) => r.id === record.id);
     const updated = {
       ...record,
+      ownerId: this.getActiveOwnerId(),
       updatedAt: new Date().toISOString(),
     };
     if (idx !== -1) {
@@ -1409,6 +1488,7 @@ export const storage = {
     const finalScore = rule === 'cap_passing' ? Math.min(reExamScore, passingScore) : reExamScore;
 
     const allScores = this.getScores();
+    const ownerId = this.getActiveOwnerId();
     const scoreIdx = allScores.findIndex(
       (s) => s.student_id === rec.student_id && s.score_item_id === rec.score_item_id
     );
@@ -1422,6 +1502,7 @@ export const storage = {
         score: finalScore,
         status: 'normal',
         note: allScores[scoreIdx].note ? `${allScores[scoreIdx].note} | ${noteText}` : noteText,
+        ownerId,
         updated_at: now,
       };
     } else {
@@ -1432,6 +1513,7 @@ export const storage = {
         score: finalScore,
         status: 'normal',
         note: noteText,
+        ownerId,
         updated_at: now,
       });
     }
@@ -1440,6 +1522,7 @@ export const storage = {
     rec.final_recorded_score = finalScore;
     rec.synced_to_gradebook = true;
     rec.updatedAt = now;
+    rec.ownerId = ownerId;
     this.saveRemedialRecords(records);
 
     return {
@@ -1451,8 +1534,10 @@ export const storage = {
 
   // Full Database Backup & Reset
   exportDatabase() {
+    const ownerId = this.getActiveOwnerId();
     return {
       version: '2.0',
+      ownerId: ownerId,
       exported_at: new Date().toISOString(),
       users: JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]'),
       classrooms: this.getClassrooms(),
@@ -1475,38 +1560,29 @@ export const storage = {
     if (!jsonData || !jsonData.students || !jsonData.subjects) {
       throw new Error('รูปแบบไฟล์ไม่ถูกต้อง');
     }
-    if (jsonData.users) localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(jsonData.users));
-    if (jsonData.classrooms) localStorage.setItem(STORAGE_KEYS.CLASSROOMS, JSON.stringify(jsonData.classrooms));
-    if (jsonData.current_classroom_id) localStorage.setItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID, jsonData.current_classroom_id);
-    if (jsonData.students) localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(jsonData.students));
-    if (jsonData.subjects) localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(jsonData.subjects));
-    if (jsonData.terms) localStorage.setItem(STORAGE_KEYS.TERMS, JSON.stringify(jsonData.terms));
-    if (jsonData.score_items) localStorage.setItem(STORAGE_KEYS.SCORE_ITEMS, JSON.stringify(jsonData.score_items));
-    if (jsonData.scores) localStorage.setItem(STORAGE_KEYS.SCORES, JSON.stringify(jsonData.scores));
-    if (jsonData.certificates) localStorage.setItem(STORAGE_KEYS.CERTIFICATES, JSON.stringify(jsonData.certificates));
-    if (jsonData.certificate_settings) localStorage.setItem(STORAGE_KEYS.CERTIFICATE_SETTINGS, JSON.stringify(jsonData.certificate_settings));
-    if (jsonData.school_settings) localStorage.setItem(STORAGE_KEYS.SCHOOL_SETTINGS, JSON.stringify(jsonData.school_settings));
-    if (jsonData.line_notify_settings) localStorage.setItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS, JSON.stringify(jsonData.line_notify_settings));
-    if (jsonData.notification_logs) localStorage.setItem(STORAGE_KEYS.NOTIFICATION_LOGS, JSON.stringify(jsonData.notification_logs));
-    if (jsonData.remedial_records) localStorage.setItem(STORAGE_KEYS.REMEDIAL_RECORDS, JSON.stringify(jsonData.remedial_records));
+    if (jsonData.classrooms) this.saveClassrooms(jsonData.classrooms);
+    if (jsonData.current_classroom_id) this.setCurrentClassroomId(jsonData.current_classroom_id);
+    if (jsonData.students) this.saveStudents(jsonData.students);
+    if (jsonData.subjects) this.saveSubjects(jsonData.subjects);
+    if (jsonData.terms) this.saveTerms(jsonData.terms);
+    if (jsonData.score_items) this.saveScoreItems(jsonData.score_items);
+    if (jsonData.scores) this.saveScores(jsonData.scores);
+    if (jsonData.certificates) this.saveCertificates(jsonData.certificates);
+    if (jsonData.certificate_settings) this.saveCertificateSettings(jsonData.certificate_settings);
+    if (jsonData.school_settings) this.saveSchoolSettings(jsonData.school_settings);
+    if (jsonData.line_notify_settings) this.saveLineNotifySettings(jsonData.line_notify_settings);
+    if (jsonData.notification_logs) this.saveNotificationLogs(jsonData.notification_logs);
+    if (jsonData.remedial_records) this.saveRemedialRecords(jsonData.remedial_records);
   },
 
   resetToDefault() {
-    localStorage.removeItem(STORAGE_KEYS.STUDENTS);
-    localStorage.removeItem(STORAGE_KEYS.SUBJECTS);
-    localStorage.removeItem(STORAGE_KEYS.TERMS);
-    localStorage.removeItem(STORAGE_KEYS.SCORE_ITEMS);
-    localStorage.removeItem(STORAGE_KEYS.SCORES);
-    localStorage.removeItem(STORAGE_KEYS.USERS);
-    localStorage.removeItem(STORAGE_KEYS.CLASSROOMS);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID);
-    localStorage.removeItem(STORAGE_KEYS.CERTIFICATES);
-    localStorage.removeItem(STORAGE_KEYS.CERTIFICATE_SETTINGS);
-    localStorage.removeItem(STORAGE_KEYS.SCHOOL_SETTINGS);
-    localStorage.removeItem(STORAGE_KEYS.LINE_NOTIFY_SETTINGS);
-    localStorage.removeItem(STORAGE_KEYS.NOTIFICATION_LOGS);
-    localStorage.removeItem(STORAGE_KEYS.REMEDIAL_RECORDS);
+    const ownerId = this.getActiveOwnerId();
+    Object.values(STORAGE_KEYS).forEach((baseKey) => {
+      localStorage.removeItem(this.getUserKey(baseKey, ownerId));
+    });
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_CLASSROOM_ID + '_' + ownerId);
     this.init();
+    realtimeSync.pushAllLocalDataToCloud(ownerId);
   },
 };
 

@@ -1,9 +1,10 @@
 # Security Specification & Test Payloads (Phase 0)
 
 ## 1. Data Invariants
-- Teachers must be authenticated with verified email (or admin) to create/update classrooms, students, subjects, score items, and scores.
-- Students and parents can query student records and scores via student code lookup.
-- Teachers can only write to their own documents (`ownerId == request.auth.uid`) or if admin.
+- 100% Account Isolation: Each account has its own isolated classrooms, students, subjects, terms, score items, scores, certificates, remedial records, and school settings.
+- Teachers must be authenticated to access or manipulate data.
+- Read & List queries strictly enforce `resource.data.ownerId == request.auth.uid`. Cross-account reading is strictly forbidden.
+- Mutations strictly enforce `ownerId == request.auth.uid`. An account cannot view, create, modify, or delete another account's data.
 - Users cannot manipulate other users' profile documents (`users/{userId}` where `userId != request.auth.uid`).
 - Scores cannot have negative values or exceed maximum allowed score for the score item.
 - Document IDs must conform to regex `^[a-zA-Z0-9_\-]+$` and size <= 128 chars.

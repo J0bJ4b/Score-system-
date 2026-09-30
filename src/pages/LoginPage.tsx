@@ -310,16 +310,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <UserIcon className="w-6 h-6 text-indigo-300" />
                 </div>
                 <div>
-                  <span className="text-[11px] font-bold tracking-wider uppercase text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded-full border border-indigo-800">
-                    สำหรับบุคลากรครู
-                  </span>
-                  <h2 className="text-lg sm:text-xl font-bold mt-0.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold tracking-wider uppercase text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded-full border border-indigo-800">
+                      สำหรับบุคลากรครู
+                    </span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                      <span>แยกข้อมูล 100% ต่อบัญชี</span>
+                    </span>
+                  </div>
+                  <h2 className="text-lg sm:text-xl font-bold mt-1">
                     เข้าสู่ระบบครูประจำชั้น
                   </h2>
                 </div>
               </div>
               <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                เข้าใช้งานเพื่อบันทึกคะแนน จัดการรายชื่อนักเรียน ตัดเกรด และออกรายงาน
+                แต่ละบัญชีจะมีห้องเรียน รายชื่อนักเรียน และผลคะแนนเป็นของตนเองโดยเฉพาะ บัญชีอื่นจะไม่เห็นข้อมูลของคุณ
               </p>
             </div>
 

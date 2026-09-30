@@ -8,6 +8,11 @@ import {
   DmcExtractedStudent,
 } from '../utils/dmcParser';
 import {
+  readAnyThaiFile,
+  fixThaiMojibake,
+  DecodedFileResult,
+} from '../utils/fileEncoding';
+import {
   Sparkles,
   FileSpreadsheet,
   Upload,
@@ -25,6 +30,8 @@ import {
   FileText,
   CreditCard,
   ShieldCheck,
+  RotateCcw,
+  Wand2,
 } from 'lucide-react';
 
 interface DmcImportModalProps {
@@ -61,6 +68,14 @@ export const DmcImportModal: React.FC<DmcImportModalProps> = ({
   const [targetClassroomId, setTargetClassroomId] = useState(activeClassroom.id);
   const [importMode, setImportMode] = useState<'overwrite' | 'append'>('overwrite');
 
+  // Encoding & Decoding states
+  const [encodingMode, setEncodingMode] = useState<'auto' | 'windows-874' | 'utf-8'>('auto');
+  const [isDecoding, setIsDecoding] = useState(false);
+  const [decodedInfo, setDecodedInfo] = useState<DecodedFileResult | null>(null);
+  const [decodeError, setDecodeError] = useState<string>('');
+  const [cachedFile, setCachedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
   // Preview state
   const [extractedList, setExtractedList] = useState<DmcExtractedStudent[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -86,24 +101,69 @@ export const DmcImportModal: React.FC<DmcImportModalProps> = ({
     setParseNotice(res.ignoredColumnsNotice);
   };
 
-  // File upload handler
+  // Decode and process file with Thai encoding detection
+  const processUploadedFile = async (
+    file: File,
+    forced?: 'auto' | 'windows-874' | 'utf-8'
+  ) => {
+    setIsDecoding(true);
+    setDecodeError('');
+    setFileName(file.name);
+    setCachedFile(file);
+
+    try {
+      const mode = forced || encodingMode;
+      const result = await readAnyThaiFile(file, mode);
+      setDecodedInfo(result);
+      handleParse(result.text);
+    } catch (err: any) {
+      console.error('File decode error:', err);
+      setDecodeError(err.message || 'ไม่สามารถเปิดอ่านไฟล์ได้ กรุณาตรวจสอบรูปแบบไฟล์');
+    } finally {
+      setIsDecoding(false);
+    }
+  };
+
+  // File upload handler from input
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    processUploadedFile(file);
+  };
 
-    setFileName(file.name);
-    const reader = new FileReader();
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
 
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        handleParse(content);
-        setActiveInputTab('paste');
-      }
-    };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
 
-    // Try reading as UTF-8
-    reader.readAsText(file, 'utf-8');
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processUploadedFile(file);
+    }
+  };
+
+  // Handle re-decode when user changes encoding
+  const handleEncodingChange = (newMode: 'auto' | 'windows-874' | 'utf-8') => {
+    setEncodingMode(newMode);
+    if (cachedFile) {
+      processUploadedFile(cachedFile, newMode);
+    }
+  };
+
+  // One-click Fix Mojibake in rawText
+  const handleFixMojibakeInText = () => {
+    if (!rawText.trim()) return;
+    const fixed = fixThaiMojibake(rawText);
+    handleParse(fixed);
   };
 
   // Toggle selection
@@ -297,54 +357,188 @@ export const DmcImportModal: React.FC<DmcImportModalProps> = ({
               <label className="font-bold text-slate-700">
                 วางข้อความตารางจากระบบ DMC หรือ Excel ที่นี่:
               </label>
-              {rawText && (
-                <button
-                  onClick={() => handleParse('')}
-                  className="text-rose-500 hover:text-rose-700 font-semibold"
-                >
-                  ล้างข้อความ
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {rawText && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleFixMojibakeInText}
+                      className="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 border border-indigo-200 transition-colors"
+                      title="กู้คืนตัวอักษรไทยที่เพี้ยนหรือเป็นภาษาต่างดาว"
+                    >
+                      <Wand2 className="w-3.5 h-3.5 text-indigo-600" />
+                      กู้คืนภาษาไทย (แก้ภาษามั่ว)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleParse('')}
+                      className="text-rose-500 hover:text-rose-700 font-semibold px-2 py-1"
+                    >
+                      ล้างข้อความ
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             <textarea
               rows={5}
-              placeholder="คัดลอกจากตาราง DMC (Ctrl+A แล้ว Ctrl+C) แล้วนำมาวางที่นี่ได้เลย..."
+              placeholder="คัดลอกจากตาราง DMC (Ctrl+A แล้ว Ctrl+C) แล้วนำมาวางที่นี่ได้เลย (หากมีภาษาต่างดาว กดปุ่ม 'กู้คืนภาษาไทย' ได้ทันที)..."
               value={rawText}
               onChange={(e) => handleParse(e.target.value)}
-              className="w-full p-3 text-xs font-mono rounded-2xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white"
+              className="w-full p-3 text-xs font-mono rounded-2xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition-colors"
             />
           </div>
         ) : (
           /* Tab 2: File Upload */
-          <div className="border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/30 rounded-2xl p-6 text-center transition-all">
-            <input
-              type="file"
-              id="dmc-file-upload"
-              accept=".csv,.txt,.tsv,.xlsx,.xls"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <label
-              htmlFor="dmc-file-upload"
-              className="cursor-pointer flex flex-col items-center justify-center space-y-2"
+          <div className="space-y-3">
+            {/* Encoding Control Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-100/80 rounded-2xl border border-slate-200 text-xs">
+              <div className="flex items-center gap-2 font-bold text-slate-700">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>การถอดรหัสภาษาไทย:</span>
+              </div>
+              <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => handleEncodingChange('auto')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    encodingMode === 'auto'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  ✨ ตรวจจับอัตโนมัติ (แนะนำ)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEncodingChange('windows-874')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    encodingMode === 'windows-874'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  Windows-874 / TIS-620 (DMC)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEncodingChange('utf-8')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    encodingMode === 'utf-8'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  UTF-8
+                </button>
+              </div>
+            </div>
+
+            {/* Drag & Drop Upload Zone */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
+                isDragging
+                  ? 'border-indigo-600 bg-indigo-100/60 scale-[1.01]'
+                  : 'border-indigo-200 hover:border-indigo-400 bg-indigo-50/30'
+              }`}
             >
-              <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-xs">
-                <Upload className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="font-bold text-indigo-700 text-sm hover:underline">
-                  คลิกเพื่อเลือกไฟล์ส่งออกจาก DMC
-                </span>
-                <span className="text-xs text-slate-500 block mt-0.5">
-                  รองรับไฟล์ .csv, .txt, .tsv (หรือไฟล์ที่ export จาก portal.bopp-obec.info/dmc)
-                </span>
-              </div>
-              {fileName && (
-                <div className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full mt-2">
-                  ไฟล์ที่เลือก: {fileName}
+              <input
+                type="file"
+                id="dmc-file-upload"
+                accept=".csv,.txt,.tsv,.xlsx,.xls"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <label
+                htmlFor="dmc-file-upload"
+                className="cursor-pointer flex flex-col items-center justify-center space-y-2.5"
+              >
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-indigo-100">
+                  {isDecoding ? (
+                    <RotateCcw className="w-7 h-7 animate-spin text-white" />
+                  ) : (
+                    <Upload className="w-7 h-7" />
+                  )}
                 </div>
-              )}
-            </label>
+
+                <div>
+                  <span className="font-black text-indigo-700 text-sm sm:text-base hover:underline block">
+                    {isDecoding
+                      ? 'กำลังอ่านและถอดรหัสภาษาไทยจากไฟล์...'
+                      : 'คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่'}
+                  </span>
+                  <span className="text-xs text-slate-500 block mt-1">
+                    รองรับไฟล์ DMC สพฐ. ทุกรูปแบบ: <strong>.csv (Windows-874 / TIS-620)</strong>, <strong>Excel (.xlsx / .xls)</strong>, .txt
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-[11px] text-slate-500">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    แก้ปัญหาภาษาต่างดาว 100%
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                    รองรับ Excel .xlsx และ .xls
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-indigo-600" />
+                    ตัดข้อมูลส่วนเกินอัตโนมัติ
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {/* Error Message */}
+            {decodeError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{decodeError}</span>
+              </div>
+            )}
+
+            {/* Decoded File Result Status Badge */}
+            {decodedInfo && !decodeError && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    <Check className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800">{fileName}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-bold text-[10px]">
+                        ถอดรหัสสำเร็จ
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-600 mt-0.5 flex flex-wrap items-center gap-2">
+                      <span>รหัสภาษา: <strong>{decodedInfo.detectedEncoding}</strong></span>
+                      <span>•</span>
+                      <span>รูปแบบ: <strong>{decodedInfo.detectedFormat.toUpperCase()}</strong></span>
+                      {decodedInfo.activeSheet && (
+                        <>
+                          <span>•</span>
+                          <span>แผ่นงาน: <strong>{decodedInfo.activeSheet}</strong></span>
+                        </>
+                      )}
+                      <span>•</span>
+                      <span>พบ <strong>{decodedInfo.rowCount}</strong> แถว</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveInputTab('paste')}
+                  className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-white px-3 py-1.5 rounded-xl border border-indigo-200 shadow-2xs shrink-0"
+                >
+                  ตรวจสอบข้อความที่ถอดรหัสแล้ว →
+                </button>
+              </div>
+            )}
           </div>
         )}
 

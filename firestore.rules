@@ -60,12 +60,13 @@ service cloud.firestore {
 
     function isValidStudent(data) {
       return data.keys().hasAll(['id', 'student_no', 'name', 'student_code', 'ownerId']) &&
-             data.keys().hasOnly(['id', 'student_no', 'name', 'student_code', 'classroom_id', 'classroom', 'gender', 'ownerId', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['id', 'student_no', 'name', 'student_code', 'citizen_id', 'classroom_id', 'classroom', 'gender', 'ownerId', 'createdAt', 'updatedAt']) &&
              data.id is string && data.id.size() <= 128 &&
              data.student_no is number && data.student_no >= 1 && data.student_no <= 200 &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
              data.student_code is string && data.student_code.size() > 0 && data.student_code.size() <= 30 &&
              data.ownerId is string && data.ownerId.size() <= 128 &&
+             (!('citizen_id' in data) || (data.citizen_id is string && data.citizen_id.size() <= 30)) &&
              (!('gender' in data) || data.gender in ['ชาย', 'หญิง']) &&
              (!('classroom_id' in data) || (data.classroom_id is string && data.classroom_id.size() <= 128)) &&
              (!('classroom' in data) || (data.classroom is string && data.classroom.size() <= 100));
@@ -192,6 +193,11 @@ service cloud.firestore {
              (!('synced_to_gradebook' in data) || (data.synced_to_gradebook is bool));
     }
 
+    function isValidSchoolSettings(data) {
+      return data.keys().hasAll(['school_name']) &&
+             data.school_name is string && data.school_name.size() > 0 && data.school_name.size() <= 200;
+    }
+
     // Test connection doc
     match /test/connection {
       allow read: if true;
@@ -213,82 +219,92 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Classrooms collection
+    // Classrooms collection - 100% isolated per teacher account
     match /classrooms/{classroomId} {
-      allow read: if true;
-      allow create: if isVerifiedUser() && isValidId(classroomId) && isValidClassroom(incoming());
-      allow update: if isVerifiedUser() && isValidId(classroomId) && isValidClassroom(incoming());
-      allow delete: if isVerifiedUser() && isValidId(classroomId);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(classroomId) && isValidClassroom(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isVerifiedUser() && isValidId(classroomId) && isValidClassroom(incoming()) && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(classroomId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Students collection
+    // Students collection - 100% isolated per teacher account
     match /students/{studentId} {
-      allow read: if true;
-      allow create: if isVerifiedUser() && isValidId(studentId) && isValidStudent(incoming());
-      allow update: if isVerifiedUser() && isValidId(studentId) && isValidStudent(incoming());
-      allow delete: if isVerifiedUser() && isValidId(studentId);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(studentId) && isValidStudent(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isVerifiedUser() && isValidId(studentId) && isValidStudent(incoming()) && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(studentId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Subjects collection
+    // Subjects collection - 100% isolated per teacher account
     match /subjects/{subjectId} {
-      allow read: if true;
-      allow create: if isVerifiedUser() && isValidId(subjectId) && isValidSubject(incoming());
-      allow update: if isVerifiedUser() && isValidId(subjectId) && isValidSubject(incoming());
-      allow delete: if isVerifiedUser() && isValidId(subjectId);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(subjectId) && isValidSubject(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isVerifiedUser() && isValidId(subjectId) && isValidSubject(incoming()) && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(subjectId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Terms collection
+    // Terms collection - 100% isolated per teacher account
     match /terms/{termId} {
-      allow read: if true;
-      allow create: if isVerifiedUser() && isValidId(termId) && isValidTerm(incoming());
-      allow update: if isVerifiedUser() && isValidId(termId) && isValidTerm(incoming());
-      allow delete: if isVerifiedUser() && isValidId(termId);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(termId) && isValidTerm(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isVerifiedUser() && isValidId(termId) && isValidTerm(incoming()) && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(termId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Score items collection
+    // Score items collection - 100% isolated per teacher account
     match /score_items/{scoreItemId} {
-      allow read: if true;
-      allow create: if isVerifiedUser() && isValidId(scoreItemId) && isValidScoreItem(incoming());
-      allow update: if isVerifiedUser() && isValidId(scoreItemId) && isValidScoreItem(incoming());
-      allow delete: if isVerifiedUser() && isValidId(scoreItemId);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(scoreItemId) && isValidScoreItem(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isVerifiedUser() && isValidId(scoreItemId) && isValidScoreItem(incoming()) && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(scoreItemId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Scores collection
+    // Scores collection - 100% isolated per teacher account
     match /scores/{scoreId} {
-      allow read: if true;
-      allow create: if isVerifiedUser() && isValidId(scoreId) && isValidScore(incoming());
-      allow update: if isVerifiedUser() && isValidId(scoreId) && isValidScore(incoming());
-      allow delete: if isVerifiedUser() && isValidId(scoreId);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(scoreId) && isValidScore(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isVerifiedUser() && isValidId(scoreId) && isValidScore(incoming()) && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(scoreId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Certificates collection
+    // Certificates collection - 100% isolated per teacher account
     match /certificates/{certificateId} {
-      allow read: if true;
-      allow create: if isVerifiedUser() && isValidId(certificateId) && isValidCertificate(incoming());
-      allow update: if isVerifiedUser() && isValidId(certificateId) && isValidCertificate(incoming());
-      allow delete: if isVerifiedUser() && isValidId(certificateId);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(certificateId) && isValidCertificate(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isVerifiedUser() && isValidId(certificateId) && isValidCertificate(incoming()) && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(certificateId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Notification logs collection
+    // Notification logs collection - 100% isolated per teacher account
     match /notification_logs/{logId} {
-      allow read: if true;
-      allow create: if isVerifiedUser() && isValidId(logId) && isValidNotificationLog(incoming());
-      allow update: if isVerifiedUser() && isValidId(logId) && isValidNotificationLog(incoming());
-      allow delete: if isVerifiedUser() && isValidId(logId);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(logId) && isValidNotificationLog(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isVerifiedUser() && isValidId(logId) && isValidNotificationLog(incoming()) && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(logId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // Remedial records collection
+    // Remedial records collection - 100% isolated per teacher account
     match /remedial_records/{recordId} {
-      allow read: if true;
-      allow create: if isVerifiedUser() && isValidId(recordId) && isValidRemedialRecord(incoming());
-      allow update: if isVerifiedUser() && isValidId(recordId) && isValidRemedialRecord(incoming());
-      allow delete: if isVerifiedUser() && isValidId(recordId);
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(recordId) && isValidRemedialRecord(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isVerifiedUser() && isValidId(recordId) && isValidRemedialRecord(incoming()) && existing().ownerId == request.auth.uid && incoming().ownerId == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(recordId) && (existing().ownerId == request.auth.uid || isAdmin());
     }
 
-    // School settings collection
+    // School settings collection - 100% isolated per teacher account (settingsId == userId)
     match /school_settings/{settingsId} {
-      allow read: if true;
-      allow write: if isVerifiedUser() && isValidId(settingsId);
+      allow get: if isSignedIn() && (settingsId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (settingsId == request.auth.uid || isAdmin());
+      allow write: if isVerifiedUser() && isValidId(settingsId) && isValidSchoolSettings(incoming()) && (settingsId == request.auth.uid || isAdmin());
     }
   }
 }

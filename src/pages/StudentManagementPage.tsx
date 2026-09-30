@@ -5,6 +5,7 @@ import { exportToCSV, parseStudentsCSV } from '../utils/gradeCalculator';
 import { SmartStudentPasteModal } from '../components/SmartStudentPasteModal';
 import { DmcImportModal } from '../components/DmcImportModal';
 import { formatCitizenId, cleanCitizenId, validateThaiCitizenId } from '../utils/dmcParser';
+import { readAnyThaiFile } from '../utils/fileEncoding';
 import {
   UserPlus,
   FileSpreadsheet,
@@ -203,18 +204,18 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
     exportToCSV(`แบบฟอร์มนำเข้ารายชื่อนักเรียน`, headers, rows);
   };
 
-  // Handle CSV file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle CSV / Excel file upload with Thai encoding detection
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setCsvText(content);
-      parseAndSetPreview(content);
-    };
-    reader.readAsText(file);
+    try {
+      const result = await readAnyThaiFile(file);
+      setCsvText(result.text);
+      parseAndSetPreview(result.text);
+    } catch (err: any) {
+      setImportError(err.message || 'เกิดข้อผิดพลาดในการอ่านไฟล์');
+    }
   };
 
   const parseAndSetPreview = (text: string) => {

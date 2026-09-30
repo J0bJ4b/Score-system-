@@ -5,10 +5,12 @@ import {
   deleteDoc,
   onSnapshot,
   getDocs,
+  query,
+  where,
   writeBatch,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db, ensureFirebaseAuthSession } from './firebase';
+import { db, ensureFirebaseAuthSession, auth, handleFirestoreError, OperationType } from './firebase';
 import {
   Classroom,
   Student,
@@ -30,11 +32,13 @@ interface SyncListener {
 class RealtimeSyncService {
   private unsubscribers: Unsubscribe[] = [];
   private isInitialized = false;
+  private activeOwnerId: string | null = null;
   private statusListeners: SyncListener[] = [];
   private currentStatus: SyncStatus = 'offline';
   private lastSyncTime: Date | null = null;
   private pendingDebounceTimer: any = null;
   private isWritingToLocalFromRemote = false;
+  private onRemoteDataChangedCallback: (() => void) | null = null;
 
   public getStatus(): SyncStatus {
     return this.currentStatus;
@@ -60,64 +64,104 @@ class RealtimeSyncService {
     this.statusListeners.forEach((l) => l(status, this.lastSyncTime, message));
   }
 
+  public getCurrentOwnerId(): string {
+    if (auth.currentUser?.uid) {
+      return auth.currentUser.uid;
+    }
+    try {
+      const raw = localStorage.getItem('gradebook_current_user_v1');
+      if (raw) {
+        const user = JSON.parse(raw);
+        if (user && user.id) return user.id;
+      }
+    } catch {}
+    return 'demo_teacher';
+  }
+
   /**
-   * Initialize real-time listeners across all core gradebook collections
+   * Initialize real-time listeners strictly scoped to the active account's ownerId
    */
   public async init(onRemoteDataChanged: () => void): Promise<void> {
-    if (this.isInitialized) return;
+    const ownerId = this.getCurrentOwnerId();
+
+    // If already listening to this specific ownerId, just record the callback
+    if (this.isInitialized && this.activeOwnerId === ownerId) {
+      this.onRemoteDataChangedCallback = onRemoteDataChanged;
+      return;
+    }
+
+    this.cleanup();
     this.isInitialized = true;
+    this.activeOwnerId = ownerId;
+    this.onRemoteDataChangedCallback = onRemoteDataChanged;
 
     try {
-      this.setStatus('syncing', 'กำลังเชื่อมต่อ Cloud Firestore...');
+      this.setStatus('syncing', 'กำลังเชื่อมต่อ Cloud Firestore ประจำบัญชี...');
       await ensureFirebaseAuthSession();
 
-      // Check if cloud database is empty, seed if needed
-      await this.checkAndSeedCloudDatabase();
+      // Check if user's private cloud dataset exists; if brand new, seed starter template
+      await this.checkAndSeedCloudDatabase(ownerId);
 
-      // Attach collection listeners
-      this.listenToCollection<Classroom>('classrooms', 'gradebook_classrooms_v2', onRemoteDataChanged);
-      this.listenToCollection<Student>('students', 'gradebook_students_v2', onRemoteDataChanged);
-      this.listenToCollection<Subject>('subjects', 'gradebook_subjects_v1', onRemoteDataChanged);
-      this.listenToCollection<Term>('terms', 'gradebook_terms_v1', onRemoteDataChanged);
-      this.listenToCollection<ScoreItem>('score_items', 'gradebook_score_items_v1', onRemoteDataChanged);
-      this.listenToCollection<Score>('scores', 'gradebook_scores_v2', onRemoteDataChanged);
-      this.listenToCollection<Certificate>('certificates', 'gradebook_certificates_v1', onRemoteDataChanged);
-      this.listenToCollection<RemedialRecord>('remedial_records', 'gradebook_remedial_records_v1', onRemoteDataChanged);
+      // Attach 100% isolated collection listeners where ownerId == current account
+      this.listenToCollection<Classroom>('classrooms', 'gradebook_classrooms_v2', ownerId, onRemoteDataChanged);
+      this.listenToCollection<Student>('students', 'gradebook_students_v2', ownerId, onRemoteDataChanged);
+      this.listenToCollection<Subject>('subjects', 'gradebook_subjects_v1', ownerId, onRemoteDataChanged);
+      this.listenToCollection<Term>('terms', 'gradebook_terms_v1', ownerId, onRemoteDataChanged);
+      this.listenToCollection<ScoreItem>('score_items', 'gradebook_score_items_v1', ownerId, onRemoteDataChanged);
+      this.listenToCollection<Score>('scores', 'gradebook_scores_v2', ownerId, onRemoteDataChanged);
+      this.listenToCollection<Certificate>('certificates', 'gradebook_certificates_v1', ownerId, onRemoteDataChanged);
+      this.listenToCollection<RemedialRecord>('remedial_records', 'gradebook_remedial_records_v1', ownerId, onRemoteDataChanged);
 
-      // Listen to School Settings single doc
-      this.listenToSchoolSettings(onRemoteDataChanged);
+      // Listen to School Settings doc for this owner
+      this.listenToSchoolSettings(ownerId, onRemoteDataChanged);
 
-      this.setStatus('connected', 'เชื่อมต่อระบบคลาวด์เรียลไทม์สำเร็จ');
+      this.setStatus('connected', 'เชื่อมต่อระบบคลาวด์แยกบัญชี 100% สำเร็จ');
     } catch (err: any) {
       console.warn('RealtimeSync initialization error:', err);
-      this.setStatus('offline', 'ทำงานแบบออฟไลน์ (บันทึกในเครื่อง)');
+      this.setStatus('offline', 'ทำงานแบบออฟไลน์ (บันทึกในเครื่องเฉพาะบัญชี)');
     }
   }
 
   /**
-   * Listen to a collection and sync changes to localStorage
+   * Switch the active account in real-time
    */
-  private listenToCollection<T extends { id: string }>(
+  public async switchAccount(newOwnerId: string, onRemoteDataChanged?: () => void) {
+    this.cleanup();
+    if (onRemoteDataChanged) {
+      this.onRemoteDataChangedCallback = onRemoteDataChanged;
+    }
+    if (this.onRemoteDataChangedCallback) {
+      await this.init(this.onRemoteDataChangedCallback);
+    }
+  }
+
+  /**
+   * Listen to a collection filtered by ownerId and sync changes to user-scoped localStorage
+   */
+  private listenToCollection<T extends { id: string; ownerId?: string }>(
     collectionName: string,
-    storageKey: string,
+    storageBaseKey: string,
+    ownerId: string,
     onChanged: () => void
   ) {
     try {
-      const colRef = collection(db, collectionName);
+      const userStorageKey = `${storageBaseKey}_${ownerId}`;
+      const q = query(collection(db, collectionName), where('ownerId', '==', ownerId));
+
       const unsub = onSnapshot(
-        colRef,
+        q,
         (snapshot) => {
-          if (snapshot.empty && !localStorage.getItem(storageKey)) {
+          if (snapshot.empty && !localStorage.getItem(userStorageKey)) {
             return;
           }
 
           if (!snapshot.empty) {
             const remoteItems: T[] = snapshot.docs.map((doc) => doc.data() as T);
 
-            // Merge with local storage gracefully
+            // Merge with user-scoped local storage
             this.isWritingToLocalFromRemote = true;
             try {
-              localStorage.setItem(storageKey, JSON.stringify(remoteItems));
+              localStorage.setItem(userStorageKey, JSON.stringify(remoteItems));
             } finally {
               this.isWritingToLocalFromRemote = false;
             }
@@ -139,11 +183,12 @@ class RealtimeSyncService {
   }
 
   /**
-   * Listen to school settings single doc
+   * Listen to school settings single doc for this owner
    */
-  private listenToSchoolSettings(onChanged: () => void) {
+  private listenToSchoolSettings(ownerId: string, onChanged: () => void) {
     try {
-      const docRef = doc(db, 'school_settings', 'primary');
+      const userStorageKey = `gradebook_school_settings_v1_${ownerId}`;
+      const docRef = doc(db, 'school_settings', ownerId);
       const unsub = onSnapshot(
         docRef,
         (snap) => {
@@ -151,7 +196,7 @@ class RealtimeSyncService {
             const data = snap.data();
             this.isWritingToLocalFromRemote = true;
             try {
-              localStorage.setItem('gradebook_school_settings_v1', JSON.stringify(data));
+              localStorage.setItem(userStorageKey, JSON.stringify(data));
             } finally {
               this.isWritingToLocalFromRemote = false;
             }
@@ -179,14 +224,15 @@ class RealtimeSyncService {
   }
 
   /**
-   * If Cloud Firestore has zero students, seed from local database
+   * If Cloud Firestore has zero classrooms for this specific ownerId, seed from local storage
    */
-  private async checkAndSeedCloudDatabase() {
+  private async checkAndSeedCloudDatabase(ownerId: string) {
     try {
-      const snap = await getDocs(collection(db, 'students'));
+      const q = query(collection(db, 'classrooms'), where('ownerId', '==', ownerId));
+      const snap = await getDocs(q);
       if (snap.empty) {
-        console.log('Cloud Firestore is empty, seeding initial database from local storage...');
-        await this.pushAllLocalDataToCloud();
+        console.log(`Cloud Firestore is empty for account ${ownerId}, seeding initial database...`);
+        await this.pushAllLocalDataToCloud(ownerId);
       }
     } catch (err) {
       console.warn('Cloud seed check notice (offline or permission):', err);
@@ -194,28 +240,38 @@ class RealtimeSyncService {
   }
 
   /**
-   * Push all current local data up to Cloud Firestore
+   * Push all of the active account's local data up to Cloud Firestore
    */
-  public async pushAllLocalDataToCloud(): Promise<boolean> {
+  public async pushAllLocalDataToCloud(specificOwnerId?: string): Promise<boolean> {
     try {
-      this.setStatus('syncing', 'กำลังอัปโหลดข้อมูลทั้งหมดขึ้น Cloud...');
+      const ownerId = specificOwnerId || this.getCurrentOwnerId();
+      this.setStatus('syncing', 'กำลังอัปโหลดข้อมูลส่วนตัวขึ้น Cloud...');
       await ensureFirebaseAuthSession();
 
       const batch = writeBatch(db);
 
-      // Helper to batch push items
+      // Helper to batch push items with ownerId
       const addItemsToBatch = (collectionName: string, items: any[]) => {
         items.forEach((item) => {
           if (item && item.id) {
             const ref = doc(db, collectionName, String(item.id));
-            batch.set(ref, { ...item, updatedAt: new Date().toISOString() }, { merge: true });
+            batch.set(
+              ref,
+              {
+                ...item,
+                ownerId: ownerId,
+                updatedAt: new Date().toISOString(),
+              },
+              { merge: true }
+            );
           }
         });
       };
 
-      const getLocalList = (key: string): any[] => {
+      const getLocalList = (baseKey: string): any[] => {
         try {
-          const raw = localStorage.getItem(key);
+          const userKey = `${baseKey}_${ownerId}`;
+          const raw = localStorage.getItem(userKey) || localStorage.getItem(baseKey);
           return raw ? JSON.parse(raw) : [];
         } catch {
           return [];
@@ -231,20 +287,26 @@ class RealtimeSyncService {
       addItemsToBatch('certificates', getLocalList('gradebook_certificates_v1'));
       addItemsToBatch('remedial_records', getLocalList('gradebook_remedial_records_v1'));
 
-      // School Settings
-      const schoolSettingsRaw = localStorage.getItem('gradebook_school_settings_v1');
+      // School Settings for this specific ownerId
+      const userSettingsKey = `gradebook_school_settings_v1_${ownerId}`;
+      const schoolSettingsRaw =
+        localStorage.getItem(userSettingsKey) || localStorage.getItem('gradebook_school_settings_v1');
       if (schoolSettingsRaw) {
         try {
           const settings = JSON.parse(schoolSettingsRaw);
-          const settingsRef = doc(db, 'school_settings', 'primary');
-          batch.set(settingsRef, { ...settings, updatedAt: new Date().toISOString() }, { merge: true });
+          const settingsRef = doc(db, 'school_settings', ownerId);
+          batch.set(
+            settingsRef,
+            { ...settings, ownerId: ownerId, updatedAt: new Date().toISOString() },
+            { merge: true }
+          );
         } catch (e) {
           console.warn('Settings parse err:', e);
         }
       }
 
       await batch.commit();
-      this.setStatus('connected', 'ซิงค์ข้อมูลขึ้น Cloud เรียบร้อยแล้ว');
+      this.setStatus('connected', 'ซิงค์ข้อมูลบัญชีขึ้น Cloud เรียบร้อยแล้ว');
       return true;
     } catch (err: any) {
       console.error('Push to Cloud failed:', err);
@@ -254,14 +316,23 @@ class RealtimeSyncService {
   }
 
   /**
-   * Save a single document to Cloud Firestore in the background
+   * Save a single document to Cloud Firestore with ownerId
    */
   public async syncDoc(collectionName: string, id: string, data: any): Promise<void> {
     if (this.isWritingToLocalFromRemote) return;
     try {
+      const ownerId = this.getCurrentOwnerId();
       await ensureFirebaseAuthSession();
       const docRef = doc(db, collectionName, String(id));
-      await setDoc(docRef, { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+      await setDoc(
+        docRef,
+        {
+          ...data,
+          ownerId: ownerId,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
       this.setStatus('connected');
     } catch (err) {
       console.warn(`Cloud sync notice for ${collectionName}/${id}:`, err);
@@ -269,17 +340,26 @@ class RealtimeSyncService {
   }
 
   /**
-   * Save multiple documents to Cloud Firestore in a single batch
+   * Save multiple documents to Cloud Firestore in a single batch with ownerId
    */
   public async syncDocsBatch(collectionName: string, items: any[]): Promise<void> {
     if (this.isWritingToLocalFromRemote || items.length === 0) return;
     try {
+      const ownerId = this.getCurrentOwnerId();
       await ensureFirebaseAuthSession();
       const batch = writeBatch(db);
       items.forEach((item) => {
         if (item && item.id) {
           const docRef = doc(db, collectionName, String(item.id));
-          batch.set(docRef, { ...item, updatedAt: new Date().toISOString() }, { merge: true });
+          batch.set(
+            docRef,
+            {
+              ...item,
+              ownerId: ownerId,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
         }
       });
       await batch.commit();
@@ -305,14 +385,19 @@ class RealtimeSyncService {
   }
 
   /**
-   * Save School Settings to Cloud Firestore
+   * Save School Settings to Cloud Firestore for this ownerId
    */
   public async syncSchoolSettings(settings: SchoolSettings): Promise<void> {
     if (this.isWritingToLocalFromRemote) return;
     try {
+      const ownerId = this.getCurrentOwnerId();
       await ensureFirebaseAuthSession();
-      const docRef = doc(db, 'school_settings', 'primary');
-      await setDoc(docRef, { ...settings, updatedAt: new Date().toISOString() }, { merge: true });
+      const docRef = doc(db, 'school_settings', ownerId);
+      await setDoc(
+        docRef,
+        { ...settings, ownerId: ownerId, updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
       this.setStatus('connected');
     } catch (err) {
       console.warn('Cloud syncSchoolSettings notice:', err);
@@ -332,6 +417,7 @@ class RealtimeSyncService {
     });
     this.unsubscribers = [];
     this.isInitialized = false;
+    this.activeOwnerId = null;
   }
 }
 

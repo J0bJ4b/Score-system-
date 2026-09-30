@@ -8,6 +8,7 @@ import {
   ScoreImportResult,
 } from '../utils/csvScoreHandler';
 import { storage } from '../services/storage';
+import { readAnyThaiFile } from '../utils/fileEncoding';
 import {
   FileSpreadsheet,
   Download,
@@ -130,18 +131,18 @@ export const ScoreCsvImportExportModal: React.FC<ScoreCsvImportExportModalProps>
     setTimeout(() => setSuccessMessage(''), 3500);
   };
 
-  // Handle File Upload for Import
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle File Upload for Import with Thai encoding detection
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setCsvRawText(content);
-      parseCsv(content);
-    };
-    reader.readAsText(file);
+    try {
+      const result = await readAnyThaiFile(file);
+      setCsvRawText(result.text);
+      parseCsv(result.text);
+    } catch (err: any) {
+      setImportError(err.message || 'ไม่สามารถเปิดอ่านไฟล์ได้ กรุณาตรวจสอบรูปแบบไฟล์');
+    }
   };
 
   const parseCsv = (text: string) => {

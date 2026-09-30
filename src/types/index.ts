@@ -4,6 +4,9 @@ export interface Classroom {
   level: string; // e.g. ประถมศึกษาปีที่ 5, ประถมศึกษาปีที่ 6
   academic_year: string; // e.g. 2569
   homeroom_teacher?: string; // ครูประจำชั้น
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Student {
@@ -15,6 +18,9 @@ export interface Student {
   classroom_id?: string; // id ห้องเรียน เช่น room-p5-1
   classroom: string; // ห้อง เช่น ป.5/1
   gender?: 'ชาย' | 'หญิง';
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Subject {
@@ -22,6 +28,9 @@ export interface Subject {
   name: string; // ชื่อวิชา เช่น ภาษาไทย, คณิตศาสตร์
   code: string; // รหัสวิชา เช่น ท15101
   credit: number; // น้ำหนักหน่วยกิต
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Term {
@@ -29,6 +38,9 @@ export interface Term {
   name: string; // ภาคเรียนที่ 1, ภาคเรียนที่ 2
   academic_year: string; // เช่น 2569
   max_score: number; // default 50
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type ScoreCategory = 'regular' | 'midterm' | 'final';
@@ -40,6 +52,9 @@ export interface ScoreItem {
   name: string; // ชื่อรายการ เช่น ใบงานที่ 1, สอบกลางภาค
   max_score: number; // คะแนนเต็มของรายการนี้
   category?: ScoreCategory; // ประเภทคะแนน (คะแนนเก็บ / กลางภาค / ปลายภาค)
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type ScoreStatus = 'normal' | 'absent' | 'missing'; // ปกติ | ขาดสอบ (ร) | ไม่ส่งงาน (มส)
@@ -52,6 +67,9 @@ export interface Score {
   status: ScoreStatus; // สถานะ
   note?: string;
   updated_at?: string;
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface User {
@@ -221,6 +239,9 @@ export interface NotificationLog {
   timestamp: string;
   student_count?: number;
   error_message?: string;
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type RemedialStatus =
@@ -284,6 +305,8 @@ export interface RemedialRecord {
 export type SchoolLogoType = 'custom' | 'garuda' | 'education' | 'seal' | 'none';
 
 export interface SchoolSettings {
+  id?: string;
+  ownerId?: string;
   school_name: string; // ชื่อโรงเรียน (ภาษาไทย)
   school_name_en?: string; // ชื่อโรงเรียน (ภาษาอังกฤษ)
   affiliation?: string; // สังกัด เช่น สพป. เชียงใหม่ เขต 1
@@ -307,6 +330,7 @@ export interface SchoolSettings {
   teacher_name?: string; // ชื่อครูผู้สอน/ครูประจำชั้น
   teacher_signature_url?: string; // ลายเซ็นดิจิทัลครู
   theme_accent_color?: string; // โทนสีเอกสาร
+  updatedAt?: string;
 }
 
 
