@@ -52,6 +52,7 @@ interface ScoreEntryPageProps {
   onNavigateToRemedial?: () => void;
   classroomName?: string;
   user?: User;
+  onAutoSaveStatusChange?: (status: 'saving' | 'saved', timeStr?: string) => void;
 }
 
 export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
@@ -68,6 +69,7 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   onNavigateToRemedial,
   classroomName,
   user,
+  onAutoSaveStatusChange,
 }) => {
   // Selected state
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
@@ -352,14 +354,16 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     });
 
     if (updates.length > 0) {
+      onAutoSaveStatusChange?.('saving');
       storage.batchUpsertScores(updates);
       isDirtyRef.current = false;
       setAutoSaveStatus('saved');
       const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastSavedTime(timeStr);
+      onAutoSaveStatusChange?.('saved', timeStr);
       onScoresUpdated();
     }
-  }, [onScoresUpdated]);
+  }, [onScoresUpdated, onAutoSaveStatusChange]);
 
   // Flush pending scores immediately on component unmount (when switching to other tabs)
   useEffect(() => {
@@ -420,6 +424,7 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     setDraftScores(updated);
 
     // Save immediately into storage synchronously so switching pages or reloading never loses scores!
+    onAutoSaveStatusChange?.('saving');
     storage.batchUpsertScores([
       {
         student_id: studentId,
@@ -433,6 +438,7 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     setAutoSaveStatus('saved');
     const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLastSavedTime(timeStr);
+    onAutoSaveStatusChange?.('saved', timeStr);
     onScoresUpdated();
   };
 
@@ -459,6 +465,7 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     setDraftScores(updated);
 
     // Save immediately to storage
+    onAutoSaveStatusChange?.('saving');
     storage.batchUpsertScores([
       {
         student_id: studentId,
@@ -472,6 +479,7 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     setAutoSaveStatus('saved');
     const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLastSavedTime(timeStr);
+    onAutoSaveStatusChange?.('saved', timeStr);
     onScoresUpdated();
   };
 
@@ -539,9 +547,13 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     }
     setDraftScores(updated);
     draftScoresRef.current = updated;
+    onAutoSaveStatusChange?.('saving');
     storage.batchUpsertScores(updates);
     isDirtyRef.current = false;
     setAutoSaveStatus('saved');
+    const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setLastSavedTime(timeStr);
+    onAutoSaveStatusChange?.('saved', timeStr);
     triggerSavedToast();
     onScoresUpdated();
   };
@@ -572,9 +584,13 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     }
     setDraftScores(updated);
     draftScoresRef.current = updated;
+    onAutoSaveStatusChange?.('saving');
     storage.batchUpsertScores(updates);
     isDirtyRef.current = false;
     setAutoSaveStatus('saved');
+    const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setLastSavedTime(timeStr);
+    onAutoSaveStatusChange?.('saved', timeStr);
     triggerSavedToast();
     onScoresUpdated();
   };

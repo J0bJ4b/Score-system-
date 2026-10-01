@@ -17,6 +17,7 @@ import {
   CloudOff,
   RefreshCw,
   Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -37,6 +38,8 @@ interface NavbarProps {
   syncStatus?: SyncStatus;
   lastSyncTime?: Date | null;
   onManualSync?: () => void;
+  autoSaveStatus?: 'idle' | 'saving' | 'saved';
+  lastSavedTime?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -56,6 +59,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   syncStatus = 'connected',
   lastSyncTime,
   onManualSync,
+  autoSaveStatus = 'saved',
+  lastSavedTime,
 }) => {
   const displayedSchoolName = schoolSettings?.school_name || user.school_name || 'โรงเรียนบ้านป่าส่าน';
   const displayedAffiliation = schoolSettings?.affiliation || 'สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน (สพฐ.)';
@@ -130,6 +135,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>มุมมองนักเรียน</span>
               </button>
             )}
+
+            {/* Auto-saving Status Indicator in Top Navbar */}
+            {autoSaveStatus === 'saving' ? (
+              <div
+                title="กำลังบันทึกคะแนนลงหน่วยความจำอัตโนมัติ..."
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-700 rounded-xl text-xs font-bold shadow-2xs animate-pulse"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 animate-spin shrink-0" />
+                <span className="hidden sm:inline">กำลังบันทึกอัตโนมัติ...</span>
+                <span className="sm:hidden font-bold">บันทึก...</span>
+                <span className="hidden md:inline-block text-[10px] bg-sky-200/70 dark:bg-sky-900 text-sky-800 dark:text-sky-200 px-1.5 py-0.2 rounded font-semibold">
+                  Auto-saving...
+                </span>
+              </div>
+            ) : autoSaveStatus === 'saved' ? (
+              <div
+                title={`ข้อมูลคะแนนบันทึกถาวรเรียบร้อยแล้ว${lastSavedTime ? ` (เวลา ${lastSavedTime})` : ''}`}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-semibold shadow-2xs transition-all"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="font-bold hidden sm:inline">บันทึกอัตโนมัติแล้ว</span>
+                <span className="font-bold sm:hidden">บันทึกแล้ว</span>
+                {lastSavedTime && (
+                  <span className="hidden xl:inline text-[11px] text-emerald-700/80 dark:text-emerald-300/80 font-mono">
+                    ({lastSavedTime})
+                  </span>
+                )}
+              </div>
+            ) : null}
 
             {/* Cloud Real-time Sync Status Indicator */}
             {syncStatus === 'connected' ? (

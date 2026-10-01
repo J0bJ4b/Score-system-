@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Student, Subject, Term, ScoreItem, Score, Classroom, SchoolSettings } from './types';
 import { storage } from './services/storage';
 import { Navbar } from './components/Navbar';
@@ -60,6 +60,27 @@ export default function App() {
   const [allScoreItems, setAllScoreItems] = useState<ScoreItem[]>(() => storage.getScoreItems());
   const [allScores, setAllScores] = useState<Score[]>(() => storage.getScores());
 
+  // Auto-saving status for Top Navbar visual confirmation
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('saved');
+  const [lastSavedTimeStr, setLastSavedTimeStr] = useState<string>(() => {
+    return new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  });
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleAutoSaveStatusChange = useCallback((status: 'saving' | 'saved', timeStr?: string) => {
+    if (status === 'saving') {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      setAutoSaveStatus('saving');
+    } else {
+      const resolvedTime = timeStr || new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastSavedTimeStr(resolvedTime);
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = setTimeout(() => {
+        setAutoSaveStatus('saved');
+      }, 450);
+    }
+  }, []);
+
   // Function to reload all data from storage
   const reloadData = useCallback(() => {
     const loadedClassrooms = storage.getClassrooms();
@@ -75,6 +96,9 @@ export default function App() {
     setAllScores(storage.getScores());
     setCurrentUser(storage.getCurrentUser());
     setSchoolSettings(storage.getSchoolSettings());
+
+    const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setLastSavedTimeStr(timeStr);
   }, []);
 
   useEffect(() => {
@@ -217,6 +241,8 @@ export default function App() {
         syncStatus={syncStatus}
         lastSyncTime={lastSyncTime}
         onManualSync={() => realtimeSync.pushAllLocalDataToCloud()}
+        autoSaveStatus={autoSaveStatus}
+        lastSavedTime={lastSavedTimeStr}
       />
 
       {/* Main Content Layout */}
@@ -247,6 +273,7 @@ export default function App() {
               onNavigateToRemedial={() => handleSelectTab('remedial')}
               classroomName={classroomName}
               user={currentUser || undefined}
+              onAutoSaveStatusChange={handleAutoSaveStatusChange}
             />
           )}
 
