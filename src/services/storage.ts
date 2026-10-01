@@ -1023,33 +1023,45 @@ export const storage = {
     currentScores.forEach(s => scoreMap.set(`${s.student_id}_${s.score_item_id}`, s));
 
     const now = new Date().toISOString();
+    const updatedItemsList: Score[] = [];
+
     newScores.forEach(s => {
       const key = `${s.student_id}_${s.score_item_id}`;
       const existing = scoreMap.get(key);
-      if (existing) {
-        scoreMap.set(key, {
-          ...existing,
-          score: s.score,
-          status: s.status,
-          note: s.note,
-          ownerId,
-          updated_at: now,
-        });
-      } else {
-        scoreMap.set(key, {
-          id: s.id || `score-${s.student_id}-${s.score_item_id}`,
-          student_id: s.student_id,
-          score_item_id: s.score_item_id,
-          score: s.score,
-          status: s.status,
-          note: s.note,
-          ownerId,
-          updated_at: now,
-        });
-      }
+      const scoreObj: Score = existing
+        ? {
+            ...existing,
+            score: s.score,
+            status: s.status,
+            note: s.note,
+            ownerId,
+            updated_at: now,
+            updatedAt: now,
+          }
+        : {
+            id: s.id || `score-${s.student_id}-${s.score_item_id}`,
+            student_id: s.student_id,
+            score_item_id: s.score_item_id,
+            score: s.score,
+            status: s.status,
+            note: s.note,
+            ownerId,
+            updated_at: now,
+            updatedAt: now,
+          };
+      scoreMap.set(key, scoreObj);
+      updatedItemsList.push(scoreObj);
     });
 
-    this.saveScores(Array.from(scoreMap.values()));
+    const allScoresArray = Array.from(scoreMap.values());
+    const userKey = this.getUserKey(STORAGE_KEYS.SCORES, ownerId);
+    localStorage.setItem(userKey, JSON.stringify(allScoresArray));
+
+    // Sync only the modified scores to Cloud Firestore
+    if (updatedItemsList.length > 0) {
+      realtimeSync.syncDocsBatch('scores', updatedItemsList);
+    }
+    return allScoresArray;
   },
 
   batchSaveScores(newScores: Array<Omit<Score, 'id'> & { id?: string }>) {

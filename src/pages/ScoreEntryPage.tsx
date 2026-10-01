@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Subject,
   Term,
@@ -112,16 +112,20 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
 
   // Local draft scores map: key = `${studentId}_${itemId}`
   const [draftScores, setDraftScores] = useState<
-    Record<string, { score: number | null; status: ScoreStatus; note?: string }>
+    Record<string, { studentId: string; itemId: string; score: number | null; status: ScoreStatus; note?: string }>
   >({});
+  const draftScoresRef = useRef(draftScores);
+  const isDirtyRef = useRef(false);
 
   // Input refs for keyboard navigation: key = `${studentIndex}_${itemIndex}`
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // Current subject's items for current term
-  const currentSubjectItems = allScoreItems.filter(
-    (i) => i.subject_id === selectedSubjectId && i.term_id === currentTerm.id
-  );
+  // Current subject's items for current term (memoized)
+  const currentSubjectItems = useMemo(() => {
+    return allScoreItems.filter(
+      (i) => i.subject_id === selectedSubjectId && i.term_id === currentTerm.id
+    );
+  }, [allScoreItems, selectedSubjectId, currentTerm.id]);
 
   // Default selected item
   useEffect(() => {
@@ -132,17 +136,41 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     } else {
       setSelectedItemId('');
     }
-  }, [selectedSubjectId, currentTerm.id, currentSubjectItems]);
+  }, [selectedSubjectId, currentTerm.id, currentSubjectItems, selectedItemId]);
 
-  // Load scores into draft state when term, subject, or external scores change
+  // Load scores into draft state when term, subject, or student list changes
   useEffect(() => {
-    const draft: Record<string, { score: number | null; status: ScoreStatus; note?: string }> = {};
+    // If there were pending dirty changes, flush them to storage first
+    if (isDirtyRef.current) {
+      const currentDraft = draftScoresRef.current;
+      const updates: Array<Omit<Score, 'id'>> = [];
+      Object.values(currentDraft).forEach((val) => {
+        if (val && val.studentId && val.itemId) {
+          updates.push({
+            student_id: val.studentId,
+            score_item_id: val.itemId,
+            score: val.score,
+            status: val.status,
+            note: val.note,
+          });
+        }
+      });
+      if (updates.length > 0) {
+        storage.batchUpsertScores(updates);
+        isDirtyRef.current = false;
+      }
+    }
+
+    const latestScores = storage.getScores();
+    const draft: Record<string, { studentId: string; itemId: string; score: number | null; status: ScoreStatus; note?: string }> = {};
     for (const stu of students) {
       for (const item of currentSubjectItems) {
-        const found = allScores.find(
+        const found = latestScores.find(
           (s) => s.student_id === stu.id && s.score_item_id === item.id
         );
         draft[`${stu.id}_${item.id}`] = {
+          studentId: stu.id,
+          itemId: item.id,
           score: found ? found.score : null,
           status: found ? found.status : 'normal',
           note: found?.note || '',
@@ -150,8 +178,10 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
       }
     }
     setDraftScores(draft);
+    draftScoresRef.current = draft;
+    isDirtyRef.current = false;
     setAutoSaveStatus('saved');
-  }, [selectedSubjectId, currentTerm.id, students.length, allScores]);
+  }, [selectedSubjectId, currentTerm.id, students, currentSubjectItems]);
 
   const activeItem = currentSubjectItems.find((i) => i.id === selectedItemId);
 
@@ -305,31 +335,15 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     });
   };
 
-  // Debounced auto-save effect
-  useEffect(() => {
-    if (autoSaveStatus !== 'dirty') return;
-
-    setAutoSaveStatus('saving');
-    const timer = setTimeout(() => {
-      saveAllScores();
-      setAutoSaveStatus('saved');
-      const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setLastSavedTime(timeStr);
-      triggerSavedToast();
-    }, 900);
-
-    return () => clearTimeout(timer);
-  }, [draftScores, autoSaveStatus]);
-
-  // Save changes to storage
-  const saveAllScores = () => {
+  // Save changes to storage immediately and reliably
+  const flushAndSaveScores = useCallback(() => {
+    const currentDraft = draftScoresRef.current;
     const updates: Array<Omit<Score, 'id'>> = [];
-    Object.entries(draftScores).forEach(([key, val]) => {
-      const [studentId, itemId] = key.split('_');
-      if (studentId && itemId) {
+    Object.values(currentDraft).forEach((val) => {
+      if (val && val.studentId && val.itemId) {
         updates.push({
-          student_id: studentId,
-          score_item_id: itemId,
+          student_id: val.studentId,
+          score_item_id: val.itemId,
           score: val.score,
           status: val.status,
           note: val.note,
@@ -339,19 +353,43 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
 
     if (updates.length > 0) {
       storage.batchUpsertScores(updates);
+      isDirtyRef.current = false;
+      setAutoSaveStatus('saved');
+      const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastSavedTime(timeStr);
       onScoresUpdated();
     }
-  };
+  }, [onScoresUpdated]);
+
+  // Flush pending scores immediately on component unmount (when switching to other tabs)
+  useEffect(() => {
+    return () => {
+      if (isDirtyRef.current) {
+        flushAndSaveScores();
+      }
+    };
+  }, [flushAndSaveScores]);
+
+  // Debounced auto-save effect
+  useEffect(() => {
+    if (autoSaveStatus !== 'dirty') return;
+
+    setAutoSaveStatus('saving');
+    const timer = setTimeout(() => {
+      flushAndSaveScores();
+      triggerSavedToast();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [draftScores, autoSaveStatus, flushAndSaveScores]);
 
   const handleManualSave = () => {
-    saveAllScores();
-    setAutoSaveStatus('saved');
-    const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setLastSavedTime(timeStr);
+    isDirtyRef.current = true;
+    flushAndSaveScores();
     triggerSavedToast();
   };
 
-  // Score value change handler
+  // Score value change handler with immediate synchronous storage persistence
   const handleScoreChange = (studentId: string, itemId: string, rawVal: string, maxScore: number) => {
     const key = `${studentId}_${itemId}`;
     let numVal: number | null = null;
@@ -363,33 +401,78 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
       }
     }
 
-    setDraftScores((prev) => ({
-      ...prev,
+    const currentItem = draftScoresRef.current[key];
+    const prevStatus = currentItem?.status || 'normal';
+    const newStatus: ScoreStatus = (prevStatus === 'absent' || prevStatus === 'missing') ? 'normal' : prevStatus;
+    const note = currentItem?.note || '';
+
+    const updated = {
+      ...draftScoresRef.current,
       [key]: {
-        ...(prev[key] || { status: 'normal' }),
+        studentId,
+        itemId,
         score: numVal,
-        status: (prev[key]?.status === 'absent' || prev[key]?.status === 'missing') ? 'normal' : prev[key]?.status || 'normal',
+        status: newStatus,
+        note,
       },
-    }));
-    setAutoSaveStatus('dirty');
+    };
+    draftScoresRef.current = updated;
+    setDraftScores(updated);
+
+    // Save immediately into storage synchronously so switching pages or reloading never loses scores!
+    storage.batchUpsertScores([
+      {
+        student_id: studentId,
+        score_item_id: itemId,
+        score: numVal,
+        status: newStatus,
+        note,
+      },
+    ]);
+    isDirtyRef.current = false;
+    setAutoSaveStatus('saved');
+    const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setLastSavedTime(timeStr);
+    onScoresUpdated();
   };
 
-  // Status toggle handler (normal / absent / missing)
+  // Status toggle handler (normal / absent / missing) with immediate persistence
   const handleStatusToggle = (studentId: string, itemId: string, status: ScoreStatus) => {
     const key = `${studentId}_${itemId}`;
-    setDraftScores((prev) => {
-      const current = prev[key] || { score: null, status: 'normal' };
-      const newStatus = current.status === status ? 'normal' : status;
-      return {
-        ...prev,
-        [key]: {
-          ...current,
-          status: newStatus,
-          score: newStatus !== 'normal' ? null : current.score,
-        },
-      };
-    });
-    setAutoSaveStatus('dirty');
+    const current = draftScoresRef.current[key] || { studentId, itemId, score: null, status: 'normal' };
+    const newStatus: ScoreStatus = current.status === status ? 'normal' : status;
+    const scoreVal = newStatus !== 'normal' ? null : current.score;
+    const note = current.note || '';
+
+    const updated = {
+      ...draftScoresRef.current,
+      [key]: {
+        ...current,
+        studentId,
+        itemId,
+        status: newStatus,
+        score: scoreVal,
+        note,
+      },
+    };
+    draftScoresRef.current = updated;
+    setDraftScores(updated);
+
+    // Save immediately to storage
+    storage.batchUpsertScores([
+      {
+        student_id: studentId,
+        score_item_id: itemId,
+        status: newStatus,
+        score: scoreVal,
+        note,
+      },
+    ]);
+    isDirtyRef.current = false;
+    setAutoSaveStatus('saved');
+    const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setLastSavedTime(timeStr);
+    onScoresUpdated();
   };
 
   // Keyboard navigation for spreadsheet feel
@@ -434,16 +517,33 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     if (!window.confirm(`ต้องการใส่คะแนนเต็ม (${maxScore} คะแนน) ให้นักเรียนทุกคนในรายการนี้ใช่หรือไม่?`)) {
       return;
     }
-    const updated = { ...draftScores };
+    const updated = { ...draftScoresRef.current };
+    const updates: Array<Omit<Score, 'id'>> = [];
     for (const stu of filteredStudents) {
       const key = `${stu.id}_${itemId}`;
+      const note = updated[key]?.note || '';
       updated[key] = {
+        studentId: stu.id,
+        itemId,
         score: maxScore,
         status: 'normal',
+        note,
       };
+      updates.push({
+        student_id: stu.id,
+        score_item_id: itemId,
+        score: maxScore,
+        status: 'normal',
+        note,
+      });
     }
     setDraftScores(updated);
-    setAutoSaveStatus('dirty');
+    draftScoresRef.current = updated;
+    storage.batchUpsertScores(updates);
+    isDirtyRef.current = false;
+    setAutoSaveStatus('saved');
+    triggerSavedToast();
+    onScoresUpdated();
   };
 
   // Quick clear column scores
@@ -451,16 +551,32 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     if (!window.confirm(`ต้องการล้างคะแนนในรายการนี้ทั้งหมดใช่หรือไม่?`)) {
       return;
     }
-    const updated = { ...draftScores };
+    const updated = { ...draftScoresRef.current };
+    const updates: Array<Omit<Score, 'id'>> = [];
     for (const stu of filteredStudents) {
       const key = `${stu.id}_${itemId}`;
       updated[key] = {
+        studentId: stu.id,
+        itemId,
         score: null,
         status: 'normal',
+        note: '',
       };
+      updates.push({
+        student_id: stu.id,
+        score_item_id: itemId,
+        score: null,
+        status: 'normal',
+        note: '',
+      });
     }
     setDraftScores(updated);
-    setAutoSaveStatus('dirty');
+    draftScoresRef.current = updated;
+    storage.batchUpsertScores(updates);
+    isDirtyRef.current = false;
+    setAutoSaveStatus('saved');
+    triggerSavedToast();
+    onScoresUpdated();
   };
 
   // Filter students by query
@@ -664,6 +780,9 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
             <select
               value={currentTerm.id}
               onChange={(e) => {
+                if (isDirtyRef.current) {
+                  flushAndSaveScores();
+                }
                 const term = terms.find((t) => t.id === e.target.value);
                 if (term) onSelectTerm(term);
               }}
@@ -684,7 +803,12 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
             </label>
             <select
               value={selectedSubjectId}
-              onChange={(e) => setSelectedSubjectId(e.target.value)}
+              onChange={(e) => {
+                if (isDirtyRef.current) {
+                  flushAndSaveScores();
+                }
+                setSelectedSubjectId(e.target.value);
+              }}
               className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none font-semibold text-indigo-900"
             >
               {subjects.map((sub) => (
@@ -702,7 +826,12 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
             </label>
             <select
               value={selectedItemId}
-              onChange={(e) => setSelectedItemId(e.target.value)}
+              onChange={(e) => {
+                if (isDirtyRef.current) {
+                  flushAndSaveScores();
+                }
+                setSelectedItemId(e.target.value);
+              }}
               disabled={viewMode === 'all'}
               className={`w-full px-3 py-2 text-sm border rounded-xl font-semibold ${
                 viewMode === 'all'
@@ -886,6 +1015,11 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                                 )
                               }
                               onKeyDown={(e) => handleKeyDown(e, studentIdx, 0)}
+                              onBlur={() => {
+                                if (isDirtyRef.current) {
+                                  flushAndSaveScores();
+                                }
+                              }}
                               disabled={scoreData.status !== 'normal'}
                               placeholder="-"
                               className={`w-24 text-center py-2 px-3 text-lg font-bold rounded-xl border transition-all ${
@@ -1074,6 +1208,11 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                                   handleScoreChange(stu.id, item.id, e.target.value, item.max_score)
                                 }
                                 onKeyDown={(e) => handleKeyDown(e, studentIdx, itemIdx)}
+                                onBlur={() => {
+                                  if (isDirtyRef.current) {
+                                    flushAndSaveScores();
+                                  }
+                                }}
                                 disabled={scoreData.status !== 'normal'}
                                 placeholder="-"
                                 className={`w-16 text-center py-1 px-1 text-sm font-bold rounded-lg border transition-all ${

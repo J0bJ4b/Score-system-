@@ -117,6 +117,16 @@ export default function App() {
     setActiveClassroomId(c.id);
     storage.setCurrentClassroomId(c.id);
     setStudents(storage.getStudents(c.id));
+    reloadData();
+  };
+
+  // Safe tab selection that guarantees fresh scores from storage on navigation
+  const handleSelectTab = (tab: NavTab) => {
+    reloadData();
+    setActiveTab(tab);
+    setTimeout(() => {
+      reloadData();
+    }, 50);
   };
 
   // Auth handlers
@@ -199,8 +209,8 @@ export default function App() {
         activeClassroom={activeClassroom}
         onSelectClassroom={handleSelectClassroom}
         onOpenClassroomManager={() => setIsClassroomModalOpen(true)}
-        onOpenStudentPortal={() => setActiveTab('student-portal')}
-        onOpenSchoolSettings={() => setActiveTab('school-settings')}
+        onOpenStudentPortal={() => handleSelectTab('student-portal')}
+        onOpenSchoolSettings={() => handleSelectTab('school-settings')}
         onOpenSystemInfo={() => setIsSystemInfoModalOpen(true)}
         onLogout={handleLogout}
         onResetData={handleResetData}
@@ -214,7 +224,7 @@ export default function App() {
         {/* Sidebar Navigation */}
         <Sidebar
           activeTab={activeTab}
-          onSelectTab={setActiveTab}
+          onSelectTab={handleSelectTab}
           studentCount={students.length}
           subjectCount={subjects.length}
           classroomName={classroomName}
@@ -232,9 +242,9 @@ export default function App() {
               allScores={allScores}
               onScoresUpdated={reloadData}
               onSelectTerm={setCurrentTerm}
-              onNavigateToSheets={() => setActiveTab('google-sheets')}
-              onNavigateToNotifications={() => setActiveTab('notifications')}
-              onNavigateToRemedial={() => setActiveTab('remedial')}
+              onNavigateToSheets={() => handleSelectTab('google-sheets')}
+              onNavigateToNotifications={() => handleSelectTab('notifications')}
+              onNavigateToRemedial={() => handleSelectTab('remedial')}
               classroomName={classroomName}
               user={currentUser || undefined}
             />
@@ -251,9 +261,9 @@ export default function App() {
               activeClassroom={activeClassroom}
               classrooms={classrooms}
               onSelectClassroom={handleSelectClassroom}
-              onNavigateToGrading={() => setActiveTab('score-entry')}
-              onNavigateToSubjectSummary={() => setActiveTab('subject-summary')}
-              onNavigateToRemedial={() => setActiveTab('remedial')}
+              onNavigateToGrading={() => handleSelectTab('score-entry')}
+              onNavigateToSubjectSummary={() => handleSelectTab('subject-summary')}
+              onNavigateToRemedial={() => handleSelectTab('remedial')}
             />
           )}
 
@@ -266,7 +276,7 @@ export default function App() {
               terms={terms}
               classroom={classroomName}
               activeClassroom={activeClassroom}
-              onNavigateToSheets={() => setActiveTab('google-sheets')}
+              onNavigateToSheets={() => handleSelectTab('google-sheets')}
             />
           )}
 
@@ -363,9 +373,9 @@ export default function App() {
               classroom={classroomName}
               activeClassroom={activeClassroom}
               classrooms={classrooms}
-              onNavigateToSheets={() => setActiveTab('google-sheets')}
+              onNavigateToSheets={() => handleSelectTab('google-sheets')}
               onOpenClassroomManager={() => setIsClassroomModalOpen(true)}
-              onNavigateToIdCards={() => setActiveTab('id-cards')}
+              onNavigateToIdCards={() => handleSelectTab('id-cards')}
               onViewStudentPortal={(stu) => {
                 setPortalStudent(stu);
               }}
@@ -404,7 +414,7 @@ export default function App() {
               terms={terms}
               classrooms={classrooms}
               user={currentUser}
-              onBackToTeacherApp={() => setActiveTab('score-entry')}
+              onBackToTeacherApp={() => handleSelectTab('score-entry')}
             />
           )}
 

@@ -158,10 +158,47 @@ class RealtimeSyncService {
           if (!snapshot.empty) {
             const remoteItems: T[] = snapshot.docs.map((doc) => doc.data() as T);
 
-            // Merge with user-scoped local storage
+            // Merge safely with user-scoped local storage so partial remote never wipes local data
             this.isWritingToLocalFromRemote = true;
             try {
-              localStorage.setItem(userStorageKey, JSON.stringify(remoteItems));
+              const localRaw = localStorage.getItem(userStorageKey);
+              let merged = remoteItems;
+              if (localRaw) {
+                try {
+                  const localList: T[] = JSON.parse(localRaw);
+                  const localMap = new Map<string, T>();
+                  localList.forEach((l) => {
+                    if (l && l.id) localMap.set(l.id, l);
+                  });
+
+                  const map = new Map<string, T>();
+
+                  remoteItems.forEach((r) => {
+                    if (!r || !r.id) return;
+                    const existingLocal = localMap.get(r.id);
+                    if (existingLocal) {
+                      const remoteTime = new Date((r as any).updatedAt || (r as any).updated_at || 0).getTime();
+                      const localTime = new Date((existingLocal as any).updatedAt || (existingLocal as any).updated_at || 0).getTime();
+                      // If local is newer or equal, preserve local!
+                      if (localTime > remoteTime) {
+                        map.set(r.id, existingLocal);
+                        return;
+                      }
+                    }
+                    map.set(r.id, r);
+                  });
+
+                  // Keep local items if not yet synced to remote
+                  localList.forEach((l) => {
+                    if (l && l.id && !map.has(l.id)) {
+                      map.set(l.id, l);
+                    }
+                  });
+                  merged = Array.from(map.values());
+                } catch {}
+              }
+
+              localStorage.setItem(userStorageKey, JSON.stringify(merged));
             } finally {
               this.isWritingToLocalFromRemote = false;
             }
@@ -248,26 +285,6 @@ class RealtimeSyncService {
       this.setStatus('syncing', 'กำลังอัปโหลดข้อมูลส่วนตัวขึ้น Cloud...');
       await ensureFirebaseAuthSession();
 
-      const batch = writeBatch(db);
-
-      // Helper to batch push items with ownerId
-      const addItemsToBatch = (collectionName: string, items: any[]) => {
-        items.forEach((item) => {
-          if (item && item.id) {
-            const ref = doc(db, collectionName, String(item.id));
-            batch.set(
-              ref,
-              {
-                ...item,
-                ownerId: ownerId,
-                updatedAt: new Date().toISOString(),
-              },
-              { merge: true }
-            );
-          }
-        });
-      };
-
       const getLocalList = (baseKey: string): any[] => {
         try {
           const userKey = `${baseKey}_${ownerId}`;
@@ -278,14 +295,43 @@ class RealtimeSyncService {
         }
       };
 
-      addItemsToBatch('classrooms', getLocalList('gradebook_classrooms_v2'));
-      addItemsToBatch('students', getLocalList('gradebook_students_v2'));
-      addItemsToBatch('subjects', getLocalList('gradebook_subjects_v1'));
-      addItemsToBatch('terms', getLocalList('gradebook_terms_v1'));
-      addItemsToBatch('score_items', getLocalList('gradebook_score_items_v1'));
-      addItemsToBatch('scores', getLocalList('gradebook_scores_v2'));
-      addItemsToBatch('certificates', getLocalList('gradebook_certificates_v1'));
-      addItemsToBatch('remedial_records', getLocalList('gradebook_remedial_records_v1'));
+      const allItemsToPush: Array<{ collectionName: string; item: any }> = [];
+      const addToList = (collectionName: string, items: any[]) => {
+        items.forEach((item) => {
+          if (item && item.id) {
+            allItemsToPush.push({ collectionName, item });
+          }
+        });
+      };
+
+      addToList('classrooms', getLocalList('gradebook_classrooms_v2'));
+      addToList('students', getLocalList('gradebook_students_v2'));
+      addToList('subjects', getLocalList('gradebook_subjects_v1'));
+      addToList('terms', getLocalList('gradebook_terms_v1'));
+      addToList('score_items', getLocalList('gradebook_score_items_v1'));
+      addToList('scores', getLocalList('gradebook_scores_v2'));
+      addToList('certificates', getLocalList('gradebook_certificates_v1'));
+      addToList('remedial_records', getLocalList('gradebook_remedial_records_v1'));
+
+      // Chunk writes so we never exceed Firestore's 500 operations per batch limit
+      const CHUNK_SIZE = 350;
+      for (let i = 0; i < allItemsToPush.length; i += CHUNK_SIZE) {
+        const chunk = allItemsToPush.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach(({ collectionName, item }) => {
+          const ref = doc(db, collectionName, String(item.id));
+          batch.set(
+            ref,
+            {
+              ...item,
+              ownerId: ownerId,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        });
+        await batch.commit();
+      }
 
       // School Settings for this specific ownerId
       const userSettingsKey = `gradebook_school_settings_v1_${ownerId}`;
@@ -295,7 +341,7 @@ class RealtimeSyncService {
         try {
           const settings = JSON.parse(schoolSettingsRaw);
           const settingsRef = doc(db, 'school_settings', ownerId);
-          batch.set(
+          await setDoc(
             settingsRef,
             { ...settings, ownerId: ownerId, updatedAt: new Date().toISOString() },
             { merge: true }
@@ -305,7 +351,6 @@ class RealtimeSyncService {
         }
       }
 
-      await batch.commit();
       this.setStatus('connected', 'ซิงค์ข้อมูลบัญชีขึ้น Cloud เรียบร้อยแล้ว');
       return true;
     } catch (err: any) {
@@ -340,16 +385,20 @@ class RealtimeSyncService {
   }
 
   /**
-   * Save multiple documents to Cloud Firestore in a single batch with ownerId
+   * Save multiple documents to Cloud Firestore safely chunked with ownerId
    */
   public async syncDocsBatch(collectionName: string, items: any[]): Promise<void> {
     if (this.isWritingToLocalFromRemote || items.length === 0) return;
     try {
       const ownerId = this.getCurrentOwnerId();
       await ensureFirebaseAuthSession();
-      const batch = writeBatch(db);
-      items.forEach((item) => {
-        if (item && item.id) {
+      const validItems = items.filter((item) => item && item.id);
+      const CHUNK_SIZE = 350;
+
+      for (let i = 0; i < validItems.length; i += CHUNK_SIZE) {
+        const chunk = validItems.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((item) => {
           const docRef = doc(db, collectionName, String(item.id));
           batch.set(
             docRef,
@@ -360,9 +409,10 @@ class RealtimeSyncService {
             },
             { merge: true }
           );
-        }
-      });
-      await batch.commit();
+        });
+        await batch.commit();
+      }
+
       this.setStatus('connected');
     } catch (err) {
       console.warn(`Cloud batch sync notice for ${collectionName}:`, err);

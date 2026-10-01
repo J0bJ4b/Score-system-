@@ -83,8 +83,6 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
     if (initialStudent) {
       setSelectedStudent(initialStudent);
     }
-    // Ensure real-time connection on student portal
-    realtimeSync.init(() => {});
   }, [initialStudent]);
 
   // Quick lookup handler
