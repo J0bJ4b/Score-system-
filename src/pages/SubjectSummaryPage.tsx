@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Subject, Student, ScoreItem, Score, Term, Classroom, User, SchoolSettings } from '../types';
 import { getSubjectSummaryForStudent, calculateGrade, exportToCSV } from '../utils/gradeCalculator';
+import { exportSchoolMisSubjectExcel } from '../services/schoolMisExport';
 import { triggerPrintToPdf } from '../utils/printToPdf';
 import { SchoolLogo } from '../components/SchoolLogo';
 import { storage } from '../services/storage';
@@ -12,6 +13,7 @@ import {
   Users,
   AlertCircle,
   CheckCircle,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface SubjectSummaryPageProps {
@@ -212,6 +214,27 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
                 <span>ซิงค์ไป Google Sheets</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!activeSubject) return;
+                exportSchoolMisSubjectExcel({
+                  subject: activeSubject,
+                  classroom: activeClassroom || { id: 'room-1', name: classroom, level: 'ประถมศึกษา', academic_year: '2569' },
+                  students,
+                  allScoreItems,
+                  allScores,
+                  terms,
+                  schoolSettings,
+                });
+              }}
+              className="px-3.5 py-2 text-xs sm:text-sm font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-xl transition-colors flex items-center gap-1.5 border border-blue-200 cursor-pointer shadow-2xs"
+              title="ส่งออกไฟล์นำเข้าสู่ระบบ SchoolMIS สพฐ."
+            >
+              <ShieldCheck className="w-4 h-4 text-blue-600" />
+              <span>ส่งออก SchoolMIS</span>
+            </button>
 
             <button
               onClick={handleExportCSV}

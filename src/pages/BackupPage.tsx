@@ -8,6 +8,7 @@ import {
 } from '../utils/csvScoreHandler';
 import { ScoreCsvImportExportModal } from '../components/ScoreCsvImportExportModal';
 import { realtimeSync, SyncStatus } from '../services/realtimeSync';
+import { exportSchoolMisAllSubjectsMaster } from '../services/schoolMisExport';
 import {
   Database,
   Download,
@@ -278,7 +279,7 @@ export const BackupPage: React.FC<BackupPageProps> = ({ onDataRestored }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: Master Grade Sheet CSV Export */}
           <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-2xl flex flex-col justify-between space-y-3">
             <div className="space-y-1">
@@ -328,7 +329,41 @@ export const BackupPage: React.FC<BackupPageProps> = ({ onDataRestored }) => {
             </button>
           </div>
 
-          {/* Card 3: Import from Excel / CSV Sheet */}
+          {/* Card 3: SchoolMIS OBEC Export */}
+          <div className="p-4 bg-blue-50/60 border border-blue-200 rounded-2xl flex flex-col justify-between space-y-3">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-200 text-blue-900">
+                สพฐ. SchoolMIS
+              </span>
+              <h4 className="font-bold text-sm text-slate-900 pt-1">
+                ส่งออกเชื่อมต่อ SchoolMIS
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                สร้างไฟล์ Master Workbook (.xlsx) รวมคะแนนทุกวิชาและสรุป GPA ตามรูปแบบมาตรฐานของ สพฐ.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                exportSchoolMisAllSubjectsMaster({
+                  classroom: activeClassroom,
+                  subjects,
+                  students,
+                  allScoreItems,
+                  allScores,
+                  terms,
+                  schoolSettings: storage.getSchoolSettings(),
+                });
+                setSuccessMsg('ดาวน์โหลดไฟล์ Master Workbook สำหรับเชื่อมต่อ SchoolMIS สำเร็จเรียบร้อย');
+                setTimeout(() => setSuccessMsg(''), 4000);
+              }}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>ดาวน์โหลด SchoolMIS (.xlsx)</span>
+            </button>
+          </div>
+
+          {/* Card 4: Import from Excel / CSV Sheet */}
           <div className="p-4 bg-indigo-50/50 border border-indigo-200 rounded-2xl flex flex-col justify-between space-y-3">
             <div className="space-y-1">
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-900">

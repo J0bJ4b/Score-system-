@@ -26,6 +26,7 @@ import { BackupPage } from './pages/BackupPage';
 import { GoogleSheetsSyncPage } from './pages/GoogleSheetsSyncPage';
 import { StudentPortalPage } from './pages/StudentPortalPage';
 import { SchoolSettingsPage } from './pages/SchoolSettingsPage';
+import { SchoolMisExportPage } from './pages/SchoolMisExportPage';
 import { SystemInfoModal } from './components/SystemInfoModal';
 import { realtimeSync, SyncStatus } from './services/realtimeSync';
 
@@ -271,6 +272,7 @@ export default function App() {
               onNavigateToSheets={() => handleSelectTab('google-sheets')}
               onNavigateToNotifications={() => handleSelectTab('notifications')}
               onNavigateToRemedial={() => handleSelectTab('remedial')}
+              onNavigateToSchoolMis={() => handleSelectTab('schoolmis-export')}
               classroomName={classroomName}
               user={currentUser || undefined}
               onAutoSaveStatusChange={handleAutoSaveStatusChange}
@@ -320,6 +322,20 @@ export default function App() {
               classroom={classroomName}
               activeClassroom={activeClassroom}
               user={currentUser}
+            />
+          )}
+
+          {activeTab === 'schoolmis-export' && (
+            <SchoolMisExportPage
+              students={students}
+              subjects={subjects}
+              allScoreItems={allScoreItems}
+              allScores={allScores}
+              terms={terms}
+              classroom={activeClassroom}
+              schoolSettings={schoolSettings}
+              onNavigateToStudents={() => handleSelectTab('students')}
+              onNavigateToScores={() => handleSelectTab('score-entry')}
             />
           )}
 

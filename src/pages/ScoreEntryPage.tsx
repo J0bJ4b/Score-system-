@@ -44,6 +44,7 @@ import {
   CheckCheck,
   Hash,
   UserCheck,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface ScoreEntryPageProps {
@@ -58,6 +59,7 @@ interface ScoreEntryPageProps {
   onNavigateToSheets?: () => void;
   onNavigateToNotifications?: () => void;
   onNavigateToRemedial?: () => void;
+  onNavigateToSchoolMis?: () => void;
   classroomName?: string;
   user?: User;
   onAutoSaveStatusChange?: (status: 'saving' | 'saved', timeStr?: string) => void;
@@ -75,6 +77,7 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   onNavigateToSheets,
   onNavigateToNotifications,
   onNavigateToRemedial,
+  onNavigateToSchoolMis,
   classroomName,
   user,
   onAutoSaveStatusChange,
@@ -1096,6 +1099,18 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
               <span>นำเข้า/ส่งออก CSV</span>
             </button>
+
+            {onNavigateToSchoolMis && (
+              <button
+                type="button"
+                onClick={onNavigateToSchoolMis}
+                className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl font-bold text-xs sm:text-sm shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
+                title="ส่งออกข้อมูลเชื่อมต่อ SchoolMIS สพฐ."
+              >
+                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                <span>ส่งออก SchoolMIS</span>
+              </button>
+            )}
 
             {onNavigateToRemedial && (
               <button

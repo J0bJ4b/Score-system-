@@ -17,6 +17,7 @@ import {
   Trophy,
   RotateCcw,
   Settings,
+  ShieldCheck,
 } from 'lucide-react';
 
 export type NavTab =
@@ -24,6 +25,7 @@ export type NavTab =
   | 'dashboard'
   | 'subject-summary'
   | 'pp5-book'
+  | 'schoolmis-export'
   | 'individual-report'
   | 'id-cards'
   | 'remedial'
@@ -78,6 +80,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       sublabel: 'สมุดบันทึกผลทั้งห้อง (เล่ม)',
       icon: FileText,
       badge: 'ปพ.5',
+    },
+    {
+      id: 'schoolmis-export' as NavTab,
+      label: 'ส่งออก SchoolMIS',
+      sublabel: 'เชื่อมต่อระบบ สพฐ. (Excel/CSV)',
+      icon: ShieldCheck,
+      badge: 'สพฐ.',
     },
     {
       id: 'individual-report' as NavTab,
