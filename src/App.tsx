@@ -291,6 +291,7 @@ export default function App() {
               onNavigateToGrading={() => handleSelectTab('score-entry')}
               onNavigateToSubjectSummary={() => handleSelectTab('subject-summary')}
               onNavigateToRemedial={() => handleSelectTab('remedial')}
+              onNavigateToSheets={() => handleSelectTab('google-sheets')}
             />
           )}
 
@@ -428,7 +429,11 @@ export default function App() {
               allScores={allScores}
               terms={terms}
               classroom={classroomName}
+              classrooms={classrooms}
+              activeClassroom={activeClassroom}
+              allStudents={storage.getAllStudents()}
               user={currentUser}
+              schoolSettings={schoolSettings}
               onDataUpdated={reloadData}
             />
           )}

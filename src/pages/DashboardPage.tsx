@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Subject, Student, ScoreItem, Score, Term, Classroom } from '../types';
 import { getSubjectSummaryForStudent, getStudentFullReport } from '../utils/gradeCalculator';
 import { storage } from '../services/storage';
+import { ClassSummaryView } from '../components/ClassSummaryView';
 import {
   Users,
   Award,
@@ -15,6 +16,7 @@ import {
   Calendar,
   Layers,
   Check,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface DashboardPageProps {
@@ -30,6 +32,7 @@ interface DashboardPageProps {
   onNavigateToGrading: () => void;
   onNavigateToSubjectSummary: () => void;
   onNavigateToRemedial?: () => void;
+  onNavigateToSheets?: () => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -45,8 +48,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToGrading,
   onNavigateToSubjectSummary,
   onNavigateToRemedial,
+  onNavigateToSheets,
 }) => {
   const [showComparison, setShowComparison] = useState(false);
+  const [dashboardView, setDashboardView] = useState<'overview' | 'class_summary'>('overview');
 
   // 1. Calculate subject averages for Term 1 and Term 2 for active classroom
   const subjectAverages = subjects.map((sub) => {
@@ -237,7 +242,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* Classroom Comparison Section (Toggled) */}
       {showComparison && (
         <div className="bg-white rounded-2xl p-5 sm:p-6 border border-indigo-200 shadow-sm space-y-4 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
               <h3 className="font-bold text-base text-slate-800 flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-indigo-600" />
@@ -247,12 +252,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 เปรียบเทียบผลการเรียน จำนวนนักเรียน เกรดเฉลี่ย (GPA) และกลุ่มเสี่ยงในแต่ละห้อง
               </p>
             </div>
-            <button
-              onClick={() => setShowComparison(false)}
-              className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
-            >
-              ปิด
-            </button>
+            <div className="flex items-center gap-2">
+              {onNavigateToSheets && (
+                <button
+                  type="button"
+                  onClick={onNavigateToSheets}
+                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>ส่งออก Google Sheets ทุกชั้นเรียน</span>
+                </button>
+              )}
+              <button
+                onClick={() => setShowComparison(false)}
+                className="text-xs text-slate-400 hover:text-slate-600 font-semibold px-2 py-1"
+              >
+                ปิด
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -313,8 +330,101 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       )}
 
-      {/* 4 Metric Cards for Active Classroom */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* Dashboard Sub-View Switcher: Overview vs Class Summary (Grade Distributions) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-2.5 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setDashboardView('overview')}
+            className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              dashboardView === 'overview'
+                ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-4 h-4 text-indigo-600" />
+            <span>ภาพรวมห้องเรียน (Overview)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDashboardView('class_summary')}
+            className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              dashboardView === 'class_summary'
+                ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-emerald-600" />
+            <span>สรุปผลชั้นเรียน (Class Summary)</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold border border-emerald-300 dark:border-emerald-800">
+              กราฟแท่งกระจายเกรด A - F
+            </span>
+          </button>
+        </div>
+
+        {dashboardView === 'overview' ? (
+          <button
+            type="button"
+            onClick={() => setDashboardView('class_summary')}
+            className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer self-end sm:self-auto"
+          >
+            <span>เปิดดูกราฟแท่งกระจายเกรด (Bar Chart)</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDashboardView('overview')}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer self-end sm:self-auto"
+          >
+            <span>← กลับไปหน้าภาพรวมห้องเรียน</span>
+          </button>
+        )}
+      </div>
+
+      {/* Render Active Dashboard Sub-View */}
+      {dashboardView === 'class_summary' ? (
+        <ClassSummaryView
+          students={students}
+          subjects={subjects}
+          allScoreItems={allScoreItems}
+          allScores={allScores}
+          terms={terms}
+          classroom={classroom}
+          activeClassroom={activeClassroom}
+          onNavigateToGrading={onNavigateToGrading}
+          onNavigateToSubjectSummary={onNavigateToSubjectSummary}
+          onNavigateToRemedial={onNavigateToRemedial}
+        />
+      ) : (
+        <>
+          {/* Quick Callout to Class Summary View */}
+          <div
+            onClick={() => setDashboardView('class_summary')}
+            className="bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-indigo-500/10 border border-emerald-300 dark:border-emerald-800 p-4 rounded-2xl flex items-center justify-between gap-3 cursor-pointer hover:border-emerald-400 transition-all shadow-2xs group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
+                  <span>สรุปผลชั้นเรียน (Class Summary): กราฟแท่งการกระจายเกรด A, B, C, D, F</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                    คลิกเพื่อเปิด
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  แสดงแผนภูมิแท่งแจกแจงเกรดทั้งห้องและแยกรายวิชา พร้อมวิเคราะห์แนวโน้มผลสัมฤทธิ์
+                </p>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform shrink-0" />
+          </div>
+
+          {/* 4 Metric Cards for Active Classroom */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Students */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
@@ -507,6 +617,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 };
