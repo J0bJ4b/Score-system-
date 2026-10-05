@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Subject, Student, ScoreItem, Score, Term, Classroom } from '../types';
+import { Subject, Student, ScoreItem, Score, Term, Classroom, User, SchoolSettings } from '../types';
 import { getSubjectSummaryForStudent, calculateGrade, exportToCSV } from '../utils/gradeCalculator';
+import { triggerPrintToPdf } from '../utils/printToPdf';
+import { SchoolLogo } from '../components/SchoolLogo';
+import { storage } from '../services/storage';
 import {
   FileSpreadsheet,
   Download,
   Printer,
-  Filter,
   Award,
   Users,
   AlertCircle,
@@ -20,6 +22,8 @@ interface SubjectSummaryPageProps {
   terms: Term[];
   classroom: string;
   activeClassroom?: Classroom;
+  user?: User;
+  schoolSettings?: SchoolSettings;
   onNavigateToSheets?: () => void;
 }
 
@@ -31,8 +35,13 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
   terms,
   classroom,
   activeClassroom,
+  user,
+  schoolSettings,
   onNavigateToSheets,
 }) => {
+  const resolvedSettings = schoolSettings || storage.getSchoolSettings();
+  const resolvedUser = user || storage.getCurrentUser();
+
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
     subjects[0]?.id || ''
   );
@@ -110,12 +119,64 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
     exportToCSV(`สรุปผลการเรียน_${activeSubject.name}_ห้อง${classroom}`, headers, rows);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrintToPDF = () => {
+    const fileName = `รายงานสรุปผลการเรียน_${activeSubject.name}_${activeSubject.code}_ห้อง${activeClassroom?.name || classroom}_ปีการศึกษา${activeClassroom?.academic_year || resolvedSettings.academic_year || '2569'}`;
+    triggerPrintToPdf({
+      title: fileName,
+      orientation: 'landscape',
+    });
   };
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Official School Header for PDF Print */}
+      <div className="hidden print:block text-center pb-3 mb-3 border-b-2 border-slate-800 space-y-1">
+        <div className="flex justify-center mb-1">
+          <SchoolLogo settings={resolvedSettings} size="sm" />
+        </div>
+        <div className="text-[10px] font-bold tracking-wider text-slate-600 uppercase">
+          {resolvedSettings.ministry || 'กระทรวงศึกษาธิการ • สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน'}
+        </div>
+        <h1 className="text-base font-bold text-slate-900 leading-tight">
+          แบบรายงานสรุปผลสัมฤทธิ์ทางการเรียนรายวิชา (ปพ.5)
+        </h1>
+        <div className="text-sm font-semibold text-slate-800">
+          {resolvedSettings.school_name || resolvedUser?.school_name || 'โรงเรียนบ้านป่าส่าน'}
+        </div>
+        <div className="text-xs text-slate-600 pt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <span><strong>วิชา:</strong> {activeSubject.name} ({activeSubject.code})</span>
+          <span><strong>ระดับชั้น:</strong> {activeClassroom?.name || classroom}</span>
+          <span><strong>น้ำหนัก:</strong> {activeSubject.credit} หน่วยกิต</span>
+          <span><strong>ปีการศึกษา:</strong> {activeClassroom?.academic_year || resolvedSettings.academic_year || '2569'}</span>
+          <span><strong>ครูผู้สอน:</strong> {activeClassroom?.homeroom_teacher || resolvedUser?.full_name || 'ครูผู้สอน'}</span>
+          <span><strong>วันที่พิมพ์:</strong> {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+        </div>
+      </div>
+
+      {/* Printable KPI Summary Strip */}
+      <div className="hidden print:grid grid-cols-5 gap-2 p-2.5 mb-3 bg-slate-50 border border-slate-400 rounded text-center text-xs">
+        <div>
+          <span className="text-slate-500 block text-[10px]">นักเรียนทั้งหมด</span>
+          <span className="font-bold text-slate-900">{students.length} คน</span>
+        </div>
+        <div>
+          <span className="text-slate-500 block text-[10px]">คะแนนเฉลี่ยรวม</span>
+          <span className="font-bold text-indigo-900">{avgTotal} / 100</span>
+        </div>
+        <div>
+          <span className="text-slate-500 block text-[10px]">ได้เกรด 4 (ดีเยี่ยม)</span>
+          <span className="font-bold text-emerald-800">{grade4Count} คน ({students.length > 0 ? Math.round((grade4Count / students.length) * 100) : 0}%)</span>
+        </div>
+        <div>
+          <span className="text-slate-500 block text-[10px]">อัตราผ่านเกณฑ์</span>
+          <span className="font-bold text-sky-800">{passRate}%</span>
+        </div>
+        <div>
+          <span className="text-slate-500 block text-[10px]">ต้องช่วยเหลือ / ร, มส</span>
+          <span className={`font-bold ${failingCount > 0 ? 'text-rose-700' : 'text-slate-800'}`}>{failingCount} คน</span>
+        </div>
+      </div>
+
       {/* Top Filter and Actions */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200 no-print">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -127,17 +188,18 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
               </span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              ระบบตัดเกรดอัตโนมัติตามเกณฑ์มาตรฐาน 8 ระดับ (0 - 4) พร้อมส่งออกไฟล์ Excel
+              ระบบตัดเกรดอัตโนมัติตามเกณฑ์มาตรฐาน 8 ระดับ (0 - 4) พร้อมพิมพ์รายงาน PDF และส่งออกไฟล์ Excel
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={handlePrint}
-              className="px-3.5 py-2 text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+              onClick={handlePrintToPDF}
+              className="px-4 py-2 text-xs sm:text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              title="พิมพ์หรือบันทึกรายงานสรุปผลการเรียนเป็นไฟล์ PDF (A4 แนวนอน)"
             >
               <Printer className="w-4 h-4" />
-              <span>พิมพ์หน้านี้</span>
+              <span>พิมพ์เป็น PDF (Print to PDF)</span>
             </button>
 
             {onNavigateToSheets && (
@@ -255,14 +317,14 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
 
       {/* Main Summary Table */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden print-card">
-        {/* Printable Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        {/* Screen Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between no-print">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-slate-800">
               ตารางสรุปผลการเรียน: วิชา{activeSubject.name} ({activeSubject.code})
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              ระดับชั้น {classroom} • น้ำหนัก {activeSubject.credit} หน่วยกิต • ปีการศึกษา 2569
+              ระดับชั้น {classroom} • น้ำหนัก {activeSubject.credit} หน่วยกิต • ปีการศึกษา {activeClassroom?.academic_year || resolvedSettings.academic_year || '2569'}
             </p>
           </div>
           <div className="text-xs font-mono text-slate-400 hidden sm:block">
@@ -271,17 +333,17 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs sm:text-sm">
+          <table className="w-full text-left border-collapse text-xs sm:text-sm print-doc-table">
             <thead>
-              <tr className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200">
-                <th className="py-3 px-3 text-center w-14">เลขที่</th>
-                <th className="py-3 px-3 w-28">เลขประจำตัว</th>
-                <th className="py-3 px-4">ชื่อ - นามสกุล</th>
-                <th className="py-3 px-4 text-center w-32 bg-sky-50/50">เทอม 1 (เต็ม 50)</th>
-                <th className="py-3 px-4 text-center w-32 bg-indigo-50/50">เทอม 2 (เต็ม 50)</th>
-                <th className="py-3 px-4 text-center w-36 bg-amber-50/50">รวมทั้งปี (เต็ม 100)</th>
-                <th className="py-3 px-4 text-center w-28">เกรด</th>
-                <th className="py-3 px-4 text-center w-32">ผลการประเมิน</th>
+              <tr className="bg-slate-100/90 text-slate-800 font-bold border-b border-slate-300">
+                <th className="py-2.5 px-2 text-center w-12">เลขที่</th>
+                <th className="py-2.5 px-3 w-28">เลขประจำตัว</th>
+                <th className="py-2.5 px-4">ชื่อ - นามสกุล</th>
+                <th className="py-2.5 px-3 text-center w-28 bg-sky-50/50 print:bg-transparent">เทอม 1 (เต็ม 50)</th>
+                <th className="py-2.5 px-3 text-center w-28 bg-indigo-50/50 print:bg-transparent">เทอม 2 (เต็ม 50)</th>
+                <th className="py-2.5 px-3 text-center w-32 bg-amber-50/50 print:bg-transparent font-extrabold">รวมทั้งปี (เต็ม 100)</th>
+                <th className="py-2.5 px-3 text-center w-24">เกรด</th>
+                <th className="py-2.5 px-4 text-center w-32">ผลการประเมิน</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -291,34 +353,34 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
                   <tr
                     key={stu.id}
                     className={`hover:bg-slate-50/80 transition-colors ${
-                      isFailing ? 'bg-rose-50/40' : ''
+                      isFailing ? 'bg-rose-50/40 print:bg-transparent' : ''
                     }`}
                   >
-                    <td className="py-2.5 px-3 text-center font-bold text-slate-600">
+                    <td className="py-2.5 px-2 text-center font-bold text-slate-600 print:text-slate-900">
                       {stu.student_no}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-xs text-slate-500">
+                    <td className="py-2.5 px-3 font-mono text-xs text-slate-500 print:text-slate-800">
                       {stu.student_code}
                     </td>
-                    <td className="py-2.5 px-4 font-semibold text-slate-800">
+                    <td className="py-2.5 px-4 font-semibold text-slate-800 print:text-slate-900">
                       {stu.name}
                     </td>
-                    <td className="py-2.5 px-4 text-center font-medium bg-sky-50/30 text-sky-900">
+                    <td className="py-2.5 px-3 text-center font-medium bg-sky-50/30 print:bg-transparent text-sky-900 print:text-slate-900">
                       {summary.term1_score}
                     </td>
-                    <td className="py-2.5 px-4 text-center font-medium bg-indigo-50/30 text-indigo-900">
+                    <td className="py-2.5 px-3 text-center font-medium bg-indigo-50/30 print:bg-transparent text-indigo-900 print:text-slate-900">
                       {summary.term2_score}
                     </td>
-                    <td className="py-2.5 px-4 text-center font-bold text-base bg-amber-50/30 text-slate-900">
+                    <td className="py-2.5 px-3 text-center font-bold text-base bg-amber-50/30 print:bg-transparent text-slate-900">
                       {summary.total_score}
                     </td>
-                    <td className="py-2.5 px-4 text-center">
+                    <td className="py-2.5 px-3 text-center">
                       <span
-                        className={`inline-block px-3 py-0.5 rounded-full font-bold text-sm border ${
+                        className={`inline-block px-3 py-0.5 rounded-full font-bold text-sm border print:border-none print:px-0 ${
                           summary.status_flag === 'ร'
-                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                            ? 'bg-amber-100 text-amber-800 border-amber-300 print:text-amber-900'
                             : summary.status_flag === 'มส'
-                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            ? 'bg-rose-100 text-rose-800 border-rose-300 print:text-rose-900'
                             : gradeInfo.badgeColor
                         }`}
                       >
@@ -327,11 +389,11 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
                     </td>
                     <td className="py-2.5 px-4 text-center text-xs">
                       {summary.status_flag === 'ร' ? (
-                        <span className="text-amber-700 font-bold">รอการตัดสิน (ขาดสอบ)</span>
+                        <span className="text-amber-700 print:text-amber-900 font-bold">รอการตัดสิน (ขาดสอบ)</span>
                       ) : summary.status_flag === 'มส' ? (
-                        <span className="text-rose-700 font-bold">ไม่มีสิทธิ์สอบ (ไม่ส่งงาน)</span>
+                        <span className="text-rose-700 print:text-rose-900 font-bold">ไม่มีสิทธิ์สอบ (ไม่ส่งงาน)</span>
                       ) : (
-                        <span className="text-slate-600 font-medium">
+                        <span className="text-slate-600 print:text-slate-800 font-medium">
                           {gradeInfo.description}
                         </span>
                       )}
@@ -349,6 +411,42 @@ export const SubjectSummaryPage: React.FC<SubjectSummaryPageProps> = ({
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Printable Signatures Block (ปพ. Style) */}
+      <div className="hidden print:grid grid-cols-3 gap-6 pt-8 mt-6 text-center text-xs print-break-inside-avoid print-signature-block">
+        <div className="space-y-1">
+          <div className="h-10 flex items-end justify-center">
+            <span className="border-b border-dotted border-slate-600 w-48 inline-block"></span>
+          </div>
+          <div className="font-bold text-slate-900">
+            ({activeClassroom?.homeroom_teacher || resolvedUser?.full_name || '....................................................'})
+          </div>
+          <div className="text-slate-600 text-[11px]">ครูผู้สอน / ผู้รายงาน</div>
+          <div className="text-slate-500 text-[10px]">วันที่ ..... เดือน ................. พ.ศ. ........</div>
+        </div>
+
+        <div className="space-y-1">
+          <div className="h-10 flex items-end justify-center">
+            <span className="border-b border-dotted border-slate-600 w-48 inline-block"></span>
+          </div>
+          <div className="font-bold text-slate-900">
+            ( .................................................... )
+          </div>
+          <div className="text-slate-600 text-[11px]">หัวหน้ากลุ่มสาระการเรียนรู้ / ฝ่ายวิชาการ</div>
+          <div className="text-slate-500 text-[10px]">วันที่ ..... เดือน ................. พ.ศ. ........</div>
+        </div>
+
+        <div className="space-y-1">
+          <div className="h-10 flex items-end justify-center">
+            <span className="border-b border-dotted border-slate-600 w-48 inline-block"></span>
+          </div>
+          <div className="font-bold text-slate-900">
+            ( .................................................... )
+          </div>
+          <div className="text-slate-600 text-[11px]">ผู้อำนวยการสถานศึกษา</div>
+          <div className="text-slate-500 text-[10px]">วันที่ ..... เดือน ................. พ.ศ. ........</div>
         </div>
       </div>
     </div>

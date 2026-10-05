@@ -303,6 +303,8 @@ export default function App() {
               terms={terms}
               classroom={classroomName}
               activeClassroom={activeClassroom}
+              user={currentUser || undefined}
+              schoolSettings={schoolSettings}
               onNavigateToSheets={() => handleSelectTab('google-sheets')}
             />
           )}

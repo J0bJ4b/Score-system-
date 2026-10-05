@@ -110,8 +110,18 @@ html.dark .shadow-2xl {
 
 @media print {
   @page {
-    size: A4 landscape;
-    margin: 6mm;
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  body.print-orientation-portrait @page {
+    size: A4 portrait !important;
+    margin: 8mm 10mm !important;
+  }
+
+  body.print-orientation-landscape @page {
+    size: A4 landscape !important;
+    margin: 8mm 8mm !important;
   }
 
   html,
@@ -121,7 +131,7 @@ html.dark .shadow-2xl {
   .bg-slate-100 {
     background-color: white !important;
     color: black !important;
-    font-size: 11pt !important;
+    font-size: 10.5pt !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -140,6 +150,53 @@ html.dark .shadow-2xl {
     break-after: page !important;
   }
 
+  /* Table pagination and layout rules for crisp PDF documents */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-avoid-break,
+  .print-break-inside-avoid,
+  .print-signature-block {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-card {
+    box-shadow: none !important;
+    border: 1px solid #64748b !important;
+    border-radius: 0 !important;
+  }
+
+  /* Professional Document Table for PDF Printing */
+  .print-doc-table {
+    border: 1.5px solid #334155 !important;
+    width: 100% !important;
+  }
+
+  .print-doc-table th,
+  .print-doc-table td {
+    border: 1px solid #475569 !important;
+    padding: 4px 6px !important;
+    color: #0f172a !important;
+  }
+
+  .print-doc-table th {
+    background-color: #f1f5f9 !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+  }
+
   .certificate-container {
     width: 100% !important;
     height: 190mm !important;
@@ -147,12 +204,6 @@ html.dark .shadow-2xl {
     page-break-inside: avoid !important;
     box-shadow: none !important;
     margin: 0 auto !important;
-  }
-
-  .print-card {
-    box-shadow: none !important;
-    border: 1px solid #94a3b8 !important;
-    border-radius: 0 !important;
   }
 
   .id-cards-batch-grid {

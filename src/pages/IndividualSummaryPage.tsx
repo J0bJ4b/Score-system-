@@ -7,14 +7,12 @@ import { storage } from '../services/storage';
 import { SchoolLogo } from '../components/SchoolLogo';
 import { StudentFeedbackModal } from '../components/StudentFeedbackModal';
 import { generateStudentLearningFeedback } from '../utils/feedbackGenerator';
+import { triggerPrintToPdf } from '../utils/printToPdf';
 import {
   Printer,
   ChevronLeft,
   ChevronRight,
-  User as UserIcon,
   Award,
-  BookOpen,
-  Calendar,
   Layers,
   TrendingUp,
   FileText,
@@ -74,11 +72,20 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
     }
   };
 
-  const handlePrint = (all: boolean = false) => {
+  const handlePrintToPDF = (all: boolean = false) => {
     setPrintAllStudents(all);
-    setTimeout(() => {
-      window.print();
-    }, 150);
+    const targetStudent = currentStudent;
+    const docTitle = all
+      ? `รายงานผลการเรียนรายบุคคล_ทั้งห้อง_${classroom}_ปีการศึกษา${activeClassroom?.academic_year || schoolSettings.academic_year || '2569'}`
+      : `รายงานผลการเรียนรายบุคคล_${targetStudent?.name || 'นักเรียน'}_เลขที่${targetStudent?.student_no || ''}_${classroom}`;
+
+    triggerPrintToPdf({
+      title: docTitle,
+      orientation: 'portrait',
+      onBeforePrint: () => {
+        setPrintAllStudents(all);
+      },
+    });
   };
 
   // Helper to render report card for a student
@@ -89,7 +96,7 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
       <div
         key={stu.id}
         className={`bg-white p-6 sm:p-10 rounded-2xl shadow-xs border border-slate-200 text-slate-800 print-card ${
-          isBatchItem ? 'page-break mb-8' : ''
+          isBatchItem ? 'page-break mb-8 print:mb-0 print:p-6' : 'print:p-6'
         }`}
       >
         {/* Ministry / School Header */}
@@ -145,7 +152,7 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
             (คะแนนเต็มแต่ละภาคเรียน 50 คะแนน)
           </div>
           <div className="border border-slate-300 rounded-lg overflow-hidden">
-            <table className="w-full text-left border-collapse text-xs sm:text-sm">
+            <table className="w-full text-left border-collapse text-xs sm:text-sm print-doc-table">
               <thead>
                 <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
                   <th className="py-2.5 px-3 text-center w-12 border-r border-slate-300">
@@ -313,35 +320,38 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
         )}
 
         {/* Signatures Block (ปพ. Style) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-6 text-center text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-6 text-center text-xs print-break-inside-avoid print-signature-block">
           <div className="space-y-1">
             <div className="h-10 flex items-end justify-center">
-              <span className="border-b border-dotted border-slate-500 w-44 inline-block"></span>
+              <span className="border-b border-dotted border-slate-600 w-44 inline-block"></span>
             </div>
             <div className="font-bold text-slate-800">
               ({activeClassroom?.homeroom_teacher || user.full_name})
             </div>
             <div className="text-slate-500 text-[11px]">ครูประจำชั้น</div>
+            <div className="text-slate-400 text-[10px]">วันที่ ..... เดือน ................. พ.ศ. ........</div>
           </div>
 
           <div className="space-y-1">
             <div className="h-10 flex items-end justify-center">
-              <span className="border-b border-dotted border-slate-500 w-44 inline-block"></span>
+              <span className="border-b border-dotted border-slate-600 w-44 inline-block"></span>
             </div>
             <div className="font-bold text-slate-800">
               ( .................................................... )
             </div>
             <div className="text-slate-500 text-[11px]">ผู้ปกครองนักเรียน</div>
+            <div className="text-slate-400 text-[10px]">วันที่ ..... เดือน ................. พ.ศ. ........</div>
           </div>
 
           <div className="space-y-1 col-span-2 sm:col-span-1">
             <div className="h-10 flex items-end justify-center">
-              <span className="border-b border-dotted border-slate-500 w-44 inline-block"></span>
+              <span className="border-b border-dotted border-slate-600 w-44 inline-block"></span>
             </div>
             <div className="font-bold text-slate-800">
               ( .................................................... )
             </div>
             <div className="text-slate-500 text-[11px]">ผู้อำนวยการโรงเรียน</div>
+            <div className="text-slate-400 text-[10px]">วันที่ ..... เดือน ................. พ.ศ. ........</div>
           </div>
         </div>
       </div>
@@ -361,34 +371,46 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
               </span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              แสดงผลการเรียนเฉลี่ย (GPA) ทุกวิชา พร้อมกราฟเส้นวิเคราะห์พัฒนาการรายบุคคล (Recharts)
+              แสดงผลการเรียนเฉลี่ย (GPA) ทุกวิชา พร้อมพิมพ์รายงาน PDF และวิเคราะห์พัฒนาการรายบุคคล
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1.5 text-xs text-slate-700 bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+              <input
+                type="checkbox"
+                checked={includeChartInPrint}
+                onChange={(e) => setIncludeChartInPrint(e.target.checked)}
+                className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
+              />
+              <span className="font-medium">แนบกราฟใน PDF</span>
+            </label>
+
             <button
               type="button"
               onClick={() => setIsFeedbackModalOpen(true)}
               className="px-3.5 py-2 text-xs sm:text-sm font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-amber-600" />
-              <span>สร้างข้อคิดเห็นเฉพาะบุคคล</span>
+              <span>สร้างข้อคิดเห็น</span>
             </button>
 
             <button
-              onClick={() => handlePrint(false)}
-              className="px-4 py-2 text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              onClick={() => handlePrintToPDF(false)}
+              className="px-4 py-2 text-xs sm:text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              title="พิมพ์หรือบันทึกรายงานผลการเรียนของนักเรียนคนนี้เป็นไฟล์ PDF (A4 แนวตั้ง)"
             >
               <Printer className="w-4 h-4" />
-              <span>พิมพ์คนนี้ (PDF)</span>
+              <span>พิมพ์เป็น PDF (คนนี้)</span>
             </button>
 
             <button
-              onClick={() => handlePrint(true)}
-              className="px-4 py-2 text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              onClick={() => handlePrintToPDF(true)}
+              className="px-4 py-2 text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              title={`พิมพ์รายงานของนักเรียนทั้งห้อง (${students.length} คน) รวมเป็นไฟล์ PDF เดียวกัน แยกหน้าละ 1 คน`}
             >
               <Layers className="w-4 h-4" />
-              <span>พิมพ์ทั้งห้อง ({students.length} คน)</span>
+              <span>พิมพ์ทั้งห้องเป็น PDF ({students.length} คน)</span>
             </button>
           </div>
         </div>
