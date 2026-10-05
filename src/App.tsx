@@ -43,6 +43,7 @@ export default function App() {
   const [classrooms, setClassrooms] = useState<Classroom[]>(() => storage.getClassrooms());
   const [activeClassroomId, setActiveClassroomId] = useState<string>(() => storage.getCurrentClassroomId());
   const [isClassroomModalOpen, setIsClassroomModalOpen] = useState(false);
+  const [selectedSummaryStudentId, setSelectedSummaryStudentId] = useState<string | undefined>(undefined);
 
   const activeClassroom =
     classrooms.find((c) => c.id === activeClassroomId) || classrooms[0] || {
@@ -349,6 +350,7 @@ export default function App() {
               user={currentUser}
               classroom={classroomName}
               activeClassroom={activeClassroom}
+              initialStudentId={selectedSummaryStudentId}
             />
           )}
 
@@ -422,6 +424,10 @@ export default function App() {
               onNavigateToSheets={() => handleSelectTab('google-sheets')}
               onOpenClassroomManager={() => setIsClassroomModalOpen(true)}
               onNavigateToIdCards={() => handleSelectTab('id-cards')}
+              onNavigateToIndividualSummary={(stu) => {
+                setSelectedSummaryStudentId(stu.id);
+                handleSelectTab('individual-report');
+              }}
               onViewStudentPortal={(stu) => {
                 setPortalStudent(stu);
               }}

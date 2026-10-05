@@ -353,5 +353,26 @@ export interface StudentLearningFeedback {
   updatedAt?: string;
 }
 
+export type StudentNoteCategory =
+  | 'behavior' // พฤติกรรมในชั้นเรียน (ความรับผิดชอบ, สมาธิ, การมีส่วนร่วม)
+  | 'development' // พัฒนาการการเรียนรู้ (ความเข้าใจ, การอ่าน, การคำนวณ)
+  | 'wellbeing' // สุขภาพ อารมณ์ และสังคม (การเข้าสังคม, ความร่าเริง)
+  | 'talent' // จุดเด่นและความสามารถพิเศษ (กีฬา, ดนตรี, ความเป็นผู้นำ)
+  | 'followup'; // ประเด็นที่ต้องติดตามหรือประสานผู้ปกครอง
+
+export interface StudentBehavioralNote {
+  id: string;
+  studentId: string;
+  studentName?: string;
+  classroomId?: string;
+  date: string; // YYYY-MM-DD
+  category: StudentNoteCategory;
+  content: string; // ข้อความบันทึกพฤติกรรมหรือพัฒนาการ
+  tag?: string; // ป้ายกำกับสั้นๆ เช่น "ชื่นชม", "กำลังพัฒนา", "สังเกตพฤติกรรม"
+  teacherName?: string; // ครูผู้บันทึก
+  createdAt: string;
+  updatedAt?: string;
+}
+
 
 

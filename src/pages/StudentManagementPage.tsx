@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Student, Classroom } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Student, Classroom, StudentBehavioralNote } from '../types';
 import { storage } from '../services/storage';
 import { exportToCSV, parseStudentsCSV } from '../utils/gradeCalculator';
 import { SmartStudentPasteModal } from '../components/SmartStudentPasteModal';
@@ -24,7 +24,9 @@ import {
   Sparkles,
   AlertTriangle,
   ShieldAlert,
+  NotebookPen,
 } from 'lucide-react';
+import { StudentBehavioralNotesModal } from '../components/StudentBehavioralNotesModal';
 
 interface StudentManagementPageProps {
   students: Student[];
@@ -36,6 +38,7 @@ interface StudentManagementPageProps {
   onOpenClassroomManager?: () => void;
   onViewStudentPortal?: (student: Student) => void;
   onNavigateToIdCards?: () => void;
+  onNavigateToIndividualSummary?: (student: Student) => void;
 }
 
 export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
@@ -48,6 +51,7 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
   onOpenClassroomManager,
   onViewStudentPortal,
   onNavigateToIdCards,
+  onNavigateToIndividualSummary,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -56,6 +60,10 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
   const [isSmartPasteOpen, setIsSmartPasteOpen] = useState(false);
   const [isDmcModalOpen, setIsDmcModalOpen] = useState(false);
   const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState(false);
+  const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
+  const [notesModalStudent, setNotesModalStudent] = useState<Student | null>(null);
+  const [notesRevision, setNotesRevision] = useState(0);
+  const allNotes = useMemo(() => storage.getStudentNotes(), [notesRevision]);
   const [deleteAllScope, setDeleteAllScope] = useState<'current_room' | 'all_rooms'>('current_room');
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -403,7 +411,7 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
                 <th className="py-3 px-4">ชื่อ - นามสกุล</th>
                 <th className="py-3 px-4 text-center w-24">เพศ</th>
                 <th className="py-3 px-4 text-center w-28">ห้อง</th>
-                <th className="py-3 px-4 text-center w-28">การจัดการ</th>
+                <th className="py-3 px-4 text-center w-36">การจัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -412,6 +420,7 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
                   const cleanId = cleanCitizenId(stu.student_code);
                   const isValidId = validateThaiCitizenId(cleanId);
                   const formatted = formatCitizenId(stu.student_code);
+                  const studentNotesCount = allNotes.filter((n: StudentBehavioralNote) => n.studentId === stu.id).length;
 
                   return (
                     <tr key={stu.id} className="hover:bg-slate-50/80 transition-colors">
@@ -448,6 +457,28 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1">
+                        {/* Quick Behavioral & Developmental Notes Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNotesModalStudent(stu);
+                            setIsNotesModalOpen(true);
+                          }}
+                          title={`บันทึกพฤติกรรม & พัฒนาการ (${studentNotesCount} บันทึก)`}
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                            studentNotesCount > 0
+                              ? 'text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200'
+                              : 'text-slate-500 hover:text-purple-600 hover:bg-purple-50'
+                          }`}
+                        >
+                          <NotebookPen className="w-4 h-4" />
+                          {studentNotesCount > 0 && (
+                            <span className="text-[10px] font-bold px-1 rounded-full bg-purple-200 text-purple-900 leading-none py-0.5">
+                              {studentNotesCount}
+                            </span>
+                          )}
+                        </button>
+
                         {onViewStudentPortal && (
                           <button
                             type="button"
@@ -990,6 +1021,20 @@ export const StudentManagementPage: React.FC<StudentManagementPageProps> = ({
         onStudentsImported={() => {
           onStudentsUpdated();
         }}
+      />
+
+      {/* Quick Behavioral & Developmental Notes Modal */}
+      <StudentBehavioralNotesModal
+        isOpen={isNotesModalOpen}
+        onClose={() => {
+          setIsNotesModalOpen(false);
+          setNotesModalStudent(null);
+        }}
+        student={notesModalStudent}
+        onNotesUpdated={() => {
+          setNotesRevision((v) => v + 1);
+        }}
+        onNavigateToIndividualSummary={onNavigateToIndividualSummary}
       />
     </div>
   );

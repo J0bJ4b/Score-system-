@@ -8,6 +8,7 @@ import { SchoolLogo } from '../components/SchoolLogo';
 import { StudentFeedbackModal } from '../components/StudentFeedbackModal';
 import { generateStudentLearningFeedback } from '../utils/feedbackGenerator';
 import { triggerPrintToPdf } from '../utils/printToPdf';
+import { StudentBehavioralNotesModal } from '../components/StudentBehavioralNotesModal';
 import {
   Printer,
   ChevronLeft,
@@ -17,6 +18,8 @@ import {
   TrendingUp,
   FileText,
   Sparkles,
+  NotebookPen,
+  Plus,
 } from 'lucide-react';
 
 interface IndividualSummaryPageProps {
@@ -28,6 +31,7 @@ interface IndividualSummaryPageProps {
   user: User;
   classroom: string;
   activeClassroom?: Classroom;
+  initialStudentId?: string;
 }
 
 export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
@@ -39,16 +43,26 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
   user,
   classroom,
   activeClassroom,
+  initialStudentId,
 }) => {
   const schoolSettings = useMemo(() => storage.getSchoolSettings(), []);
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
-    students[0]?.id || ''
+    initialStudentId || students[0]?.id || ''
   );
   const [printAllStudents, setPrintAllStudents] = useState(false);
   const [activeTab, setActiveTab] = useState<'both' | 'report' | 'chart'>('both');
   const [includeChartInPrint, setIncludeChartInPrint] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackRefreshKey, setFeedbackRefreshKey] = useState(0);
+  const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
+  const [notesRevision, setNotesRevision] = useState(0);
+
+  // Sync selectedStudentId when initialStudentId changes
+  useEffect(() => {
+    if (initialStudentId && students.some((s) => s.id === initialStudentId)) {
+      setSelectedStudentId(initialStudentId);
+    }
+  }, [initialStudentId, students]);
 
   // Sync selectedStudentId when classroom or student list changes
   useEffect(() => {
@@ -301,6 +315,90 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
           })()}
         </div>
 
+        {/* Behavioral & Developmental Notes (บันทึกพฤติกรรมและพัฒนาการ) */}
+        {(() => {
+          const studentNotes = storage.getStudentNotes(stu.id);
+          return (
+            <div className="pt-3 pb-6 border-b border-slate-200 text-xs">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <NotebookPen className="w-3.5 h-3.5 text-purple-600" />
+                  <span>บันทึกพฤติกรรมและพัฒนาการ (Behavioral & Developmental Notes):</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 font-semibold">
+                    {studentNotes.length} บันทึก
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedStudentId(stu.id);
+                    setIsNotesModalOpen(true);
+                  }}
+                  className="no-print text-purple-700 hover:text-purple-900 text-[11px] font-bold flex items-center gap-1 cursor-pointer hover:underline"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>เพิ่ม/จัดการบันทึก</span>
+                </button>
+              </div>
+
+              {studentNotes.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {studentNotes.map((note) => {
+                    const catLabel =
+                      note.category === 'behavior'
+                        ? 'พฤติกรรม'
+                        : note.category === 'development'
+                        ? 'พัฒนาการ'
+                        : note.category === 'wellbeing'
+                        ? 'อารมณ์/สังคม'
+                        : note.category === 'talent'
+                        ? 'จุดเด่น'
+                        : 'ติดตาม';
+
+                    return (
+                      <div
+                        key={note.id}
+                        className="p-3 bg-purple-50/40 border border-purple-100 rounded-xl space-y-1.5 text-slate-800"
+                      >
+                        <div className="flex items-center justify-between text-[10px] text-slate-500">
+                          <span className="font-bold text-purple-900 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                            <span>{catLabel}</span>
+                            {note.tag && (
+                              <span className="text-slate-400 font-normal">({note.tag})</span>
+                            )}
+                          </span>
+                          <span className="font-mono text-slate-400">{note.date}</span>
+                        </div>
+                        <p className="text-xs text-slate-800 leading-relaxed font-sans">
+                          {note.content}
+                        </p>
+                        <div className="text-[9px] text-slate-400">
+                          บันทึกโดย: {note.teacherName || 'ครูประจำชั้น'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs">
+                  ยังไม่มีบันทึกพฤติกรรมหรือพัฒนาการสำหรับนักเรียนคนนี้{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStudentId(stu.id);
+                      setIsNotesModalOpen(true);
+                    }}
+                    className="no-print text-purple-600 font-bold underline cursor-pointer ml-1"
+                  >
+                    + เพิ่มบันทึก
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Optional Printable Progress Chart */}
         {includeChartInPrint && (
           <div className="my-6 pt-4 border-t border-slate-200">
@@ -541,6 +639,14 @@ export const IndividualSummaryPage: React.FC<IndividualSummaryPageProps> = ({
         allScores={allScores}
         terms={terms}
         onFeedbackSaved={() => setFeedbackRefreshKey((prev) => prev + 1)}
+      />
+
+      {/* Quick Behavioral & Developmental Notes Modal */}
+      <StudentBehavioralNotesModal
+        isOpen={isNotesModalOpen}
+        onClose={() => setIsNotesModalOpen(false)}
+        student={currentStudent}
+        onNotesUpdated={() => setNotesRevision((v) => v + 1)}
       />
     </div>
   );

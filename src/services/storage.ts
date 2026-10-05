@@ -15,6 +15,7 @@ import {
   RemedialRecord,
   SchoolSettings,
   StudentLearningFeedback,
+  StudentBehavioralNote,
 } from '../types';
 import { realtimeSync } from './realtimeSync';
 
@@ -37,6 +38,7 @@ const STORAGE_KEYS = {
   REMEDIAL_RECORDS: 'gradebook_remedial_records_v1',
   SCHOOL_SETTINGS: 'gradebook_school_settings_v1',
   STUDENT_FEEDBACKS: 'gradebook_student_feedbacks_v1',
+  STUDENT_NOTES: 'gradebook_student_notes_v1',
 };
 
 export const INITIAL_SCHOOL_SETTINGS: SchoolSettings = {
@@ -337,6 +339,69 @@ export const INITIAL_REMEDIAL_RECORDS: RemedialRecord[] = [
     remedial_round: 1,
     synced_to_gradebook: false,
     createdAt: new Date(Date.now() - 3600000 * 6).toISOString(),
+  },
+];
+
+export const INITIAL_STUDENT_NOTES: StudentBehavioralNote[] = [
+  {
+    id: 'note-1',
+    studentId: 'stu-1',
+    studentName: 'เด็กชายธนกฤต มั่นคงดี',
+    classroomId: 'room-p5-1',
+    date: '2026-09-28',
+    category: 'behavior',
+    content: 'มีความรับผิดชอบดีเยี่ยม ส่งงานครบถ้วนตรงเวลา และช่วยครูดูแลความเรียบร้อยในห้อง',
+    tag: 'ชื่นชม',
+    teacherName: 'ครูสมศรี จิตเมตตา',
+    createdAt: new Date(Date.now() - 3600000 * 120).toISOString(),
+  },
+  {
+    id: 'note-2',
+    studentId: 'stu-1',
+    studentName: 'เด็กชายธนกฤต มั่นคงดี',
+    classroomId: 'room-p5-1',
+    date: '2026-10-02',
+    category: 'development',
+    content: 'ทักษะการคำนวณและแก้โจทย์ปัญหาคณิตศาสตร์ก้าวหน้าขึ้นมาก สามารถอธิบายเพื่อนได้',
+    tag: 'ก้าวหน้า',
+    teacherName: 'ครูสมศรี จิตเมตตา',
+    createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+  },
+  {
+    id: 'note-3',
+    studentId: 'stu-9',
+    studentName: 'เด็กชายอิทธิพล สุริยา',
+    classroomId: 'room-p5-1',
+    date: '2026-09-20',
+    category: 'followup',
+    content: 'มีอาการเหม่อลอยเป็นบางช่วงในชั่วโมงคณิตศาสตร์ แนะนำให้นั่งแถวหน้าและกระตุ้นการตอบคำถาม',
+    tag: 'ติดตาม',
+    teacherName: 'ครูสมศรี จิตเมตตา',
+    createdAt: new Date(Date.now() - 3600000 * 200).toISOString(),
+  },
+  {
+    id: 'note-4',
+    studentId: 'stu-9',
+    studentName: 'เด็กชายอิทธิพล สุริยา',
+    classroomId: 'room-p5-1',
+    date: '2026-10-01',
+    category: 'development',
+    content: 'หลังการสอนซ่อมเสริมเรื่องเศษส่วน มีความมั่นใจมากขึ้น กล้าถามครูเมื่อไม่เข้าใจ',
+    tag: 'พัฒนาการดีขึ้น',
+    teacherName: 'ครูสมศรี จิตเมตตา',
+    createdAt: new Date(Date.now() - 3600000 * 72).toISOString(),
+  },
+  {
+    id: 'note-5',
+    studentId: 'stu-12',
+    studentName: 'เด็กหญิงณิชารีย์ สว่างวงศ์',
+    classroomId: 'room-p5-1',
+    date: '2026-09-25',
+    category: 'talent',
+    content: 'มีทักษะความเป็นผู้นำและการสื่อสารชัดเจน ได้รับเลือกเป็นตัวแทนกล่าวแนะนำกิจกรรมหน้าเสาธง',
+    tag: 'จุดเด่น',
+    teacherName: 'ครูสมศรี จิตเมตตา',
+    createdAt: new Date(Date.now() - 3600000 * 150).toISOString(),
   },
 ];
 
@@ -1583,6 +1648,59 @@ export const storage = {
     realtimeSync.pushAllLocalDataToCloud(ownerId);
   },
 
+  // Student Behavioral & Developmental Notes Methods
+  getStudentNotes(studentId?: string): StudentBehavioralNote[] {
+    const all = this.getUserList<StudentBehavioralNote>(
+      STORAGE_KEYS.STUDENT_NOTES,
+      INITIAL_STUDENT_NOTES
+    );
+    if (studentId) {
+      return all
+        .filter((n) => n.studentId === studentId)
+        .sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
+    }
+    return all.sort(
+      (a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime()
+    );
+  },
+
+  saveStudentNotes(notes: StudentBehavioralNote[]) {
+    this.saveUserList(STORAGE_KEYS.STUDENT_NOTES, notes, 'student_notes');
+  },
+
+  addStudentNote(note: Omit<StudentBehavioralNote, 'id' | 'createdAt'>): StudentBehavioralNote {
+    const all = this.getStudentNotes();
+    const newNote: StudentBehavioralNote = {
+      ...note,
+      id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      createdAt: new Date().toISOString(),
+    };
+    all.unshift(newNote);
+    this.saveStudentNotes(all);
+    return newNote;
+  },
+
+  updateStudentNote(noteId: string, updates: Partial<StudentBehavioralNote>): boolean {
+    const all = this.getStudentNotes();
+    const idx = all.findIndex((n) => n.id === noteId);
+    if (idx === -1) return false;
+    all[idx] = {
+      ...all[idx],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    this.saveStudentNotes(all);
+    return true;
+  },
+
+  deleteStudentNote(noteId: string): boolean {
+    const all = this.getStudentNotes();
+    const filtered = all.filter((n) => n.id !== noteId);
+    if (filtered.length === all.length) return false;
+    this.saveStudentNotes(filtered);
+    return true;
+  },
+
   // Full Database Backup & Reset
   exportDatabase() {
     const ownerId = this.getActiveOwnerId();
@@ -1604,6 +1722,7 @@ export const storage = {
       line_notify_settings: this.getLineNotifySettings(),
       notification_logs: this.getNotificationLogs(),
       remedial_records: this.getAllRemedialRecords(),
+      student_notes: this.getStudentNotes(),
     };
   },
 
@@ -1624,6 +1743,7 @@ export const storage = {
     if (jsonData.line_notify_settings) this.saveLineNotifySettings(jsonData.line_notify_settings);
     if (jsonData.notification_logs) this.saveNotificationLogs(jsonData.notification_logs);
     if (jsonData.remedial_records) this.saveRemedialRecords(jsonData.remedial_records);
+    if (jsonData.student_notes) this.saveStudentNotes(jsonData.student_notes);
   },
 
   resetToDefault() {
