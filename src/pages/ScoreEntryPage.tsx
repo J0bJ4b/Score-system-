@@ -13,6 +13,7 @@ import { lineNotifyService } from '../services/lineNotify';
 import { getStudentTermScore } from '../utils/gradeCalculator';
 import { ScoreCsvImportExportModal } from '../components/ScoreCsvImportExportModal';
 import { ScoreWeightingModal } from '../components/ScoreWeightingModal';
+import { QuickScoreTextEntryModal } from '../components/QuickScoreTextEntryModal';
 import {
   Save,
   CheckCircle2,
@@ -36,6 +37,7 @@ import {
   Download,
   Upload,
   Sliders,
+  Zap,
 } from 'lucide-react';
 
 interface ScoreEntryPageProps {
@@ -97,6 +99,9 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   // Custom Score Weighting Modal state
   const [showWeightingModal, setShowWeightingModal] = useState(false);
 
+  // Quick Text/CSV Score Entry Modal state
+  const [showQuickTextEntryModal, setShowQuickTextEntryModal] = useState(false);
+
   // Trigger floating saved toast
   const triggerSavedToast = () => {
     setShowSavedToast(true);
@@ -140,6 +145,30 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
     }
   }, [selectedSubjectId, currentTerm.id, currentSubjectItems, selectedItemId]);
 
+  // Refresh draft scores from latest storage data
+  const refreshDraftScores = useCallback(() => {
+    const latestScores = storage.getScores();
+    const draft: Record<string, { studentId: string; itemId: string; score: number | null; status: ScoreStatus; note?: string }> = {};
+    for (const stu of students) {
+      for (const item of currentSubjectItems) {
+        const found = latestScores.find(
+          (s) => s.student_id === stu.id && s.score_item_id === item.id
+        );
+        draft[`${stu.id}_${item.id}`] = {
+          studentId: stu.id,
+          itemId: item.id,
+          score: found ? found.score : null,
+          status: found ? found.status : 'normal',
+          note: found?.note || '',
+        };
+      }
+    }
+    setDraftScores(draft);
+    draftScoresRef.current = draft;
+    isDirtyRef.current = false;
+    setAutoSaveStatus('saved');
+  }, [students, currentSubjectItems]);
+
   // Load scores into draft state when term, subject, or student list changes
   useEffect(() => {
     // If there were pending dirty changes, flush them to storage first
@@ -163,27 +192,15 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
       }
     }
 
-    const latestScores = storage.getScores();
-    const draft: Record<string, { studentId: string; itemId: string; score: number | null; status: ScoreStatus; note?: string }> = {};
-    for (const stu of students) {
-      for (const item of currentSubjectItems) {
-        const found = latestScores.find(
-          (s) => s.student_id === stu.id && s.score_item_id === item.id
-        );
-        draft[`${stu.id}_${item.id}`] = {
-          studentId: stu.id,
-          itemId: item.id,
-          score: found ? found.score : null,
-          status: found ? found.status : 'normal',
-          note: found?.note || '',
-        };
-      }
+    refreshDraftScores();
+  }, [selectedSubjectId, currentTerm.id, refreshDraftScores]);
+
+  // Sync draft if external allScores prop updates and there are no dirty local edits
+  useEffect(() => {
+    if (!isDirtyRef.current) {
+      refreshDraftScores();
     }
-    setDraftScores(draft);
-    draftScoresRef.current = draft;
-    isDirtyRef.current = false;
-    setAutoSaveStatus('saved');
-  }, [selectedSubjectId, currentTerm.id, students, currentSubjectItems]);
+  }, [allScores, refreshDraftScores]);
 
   const activeItem = currentSubjectItems.find((i) => i.id === selectedItemId);
 
@@ -724,6 +741,16 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
             >
               <Sliders className="w-4 h-4 text-indigo-600" />
               <span>สัดส่วนคะแนน</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowQuickTextEntryModal(true)}
+              className="px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              title="กรอกคะแนนแบบข้อความรวดเร็ว (CSV-style Text Area) วางครั้งเดียวได้ทั้งห้อง"
+            >
+              <Zap className="w-4 h-4 text-amber-200 fill-amber-200" />
+              <span>กรอกด่วน (CSV/Text)</span>
             </button>
 
             <button
@@ -1559,7 +1586,9 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
         classroomName={classroomName}
         defaultTab={csvModalTab}
         onScoresImported={() => {
+          refreshDraftScores();
           onScoresUpdated();
+          triggerSavedToast();
         }}
       />
 
@@ -1572,9 +1601,32 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
         terms={terms}
         currentTermId={currentTerm.id}
         onWeightingApplied={() => {
+          refreshDraftScores();
           onScoresUpdated();
+          triggerSavedToast();
         }}
       />
+
+      {/* Quick Score Text Entry Modal (Fast CSV-style Text Area Batch Update) */}
+      {showQuickTextEntryModal && activeSubject && (
+        <QuickScoreTextEntryModal
+          isOpen={showQuickTextEntryModal}
+          onClose={() => setShowQuickTextEntryModal(false)}
+          subject={activeSubject}
+          term={currentTerm}
+          students={students}
+          scoreItems={currentSubjectItems}
+          currentScores={allScores}
+          defaultItemId={selectedItemId}
+          classroomName={classroomName}
+          onScoresSaved={() => {
+            refreshDraftScores();
+            onScoresUpdated();
+            triggerSavedToast();
+          }}
+          onAutoSaveStatusChange={onAutoSaveStatusChange}
+        />
+      )}
     </div>
   );
 };
