@@ -38,6 +38,12 @@ import {
   Upload,
   Sliders,
   Zap,
+  CheckSquare,
+  Square,
+  MinusSquare,
+  CheckCheck,
+  Hash,
+  UserCheck,
 } from 'lucide-react';
 
 interface ScoreEntryPageProps {
@@ -102,6 +108,30 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   // Quick Text/CSV Score Entry Modal state
   const [showQuickTextEntryModal, setShowQuickTextEntryModal] = useState(false);
 
+  // Quick Fill Mode state (bulk assign same score to multiple students)
+  const [isQuickFillMode, setIsQuickFillMode] = useState(false);
+  const [quickFillItemId, setQuickFillItemId] = useState<string>('');
+  const [quickFillScore, setQuickFillScore] = useState<string>('');
+  const [quickFillStatus, setQuickFillStatus] = useState<ScoreStatus>('normal');
+  const [quickFillFilter, setQuickFillFilter] = useState<'all' | 'selected' | 'empty_only' | 'failing_only'>('all');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+
+  // Feedback Notification state (for alerts/warnings without window.alert)
+  const [feedbackToast, setFeedbackToast] = useState<{
+    type: 'success' | 'warning' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
+  const feedbackToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showNotification = useCallback((type: 'success' | 'warning' | 'error', title: string, message: string) => {
+    setFeedbackToast({ type, title, message });
+    if (feedbackToastTimeoutRef.current) clearTimeout(feedbackToastTimeoutRef.current);
+    feedbackToastTimeoutRef.current = setTimeout(() => {
+      setFeedbackToast(null);
+    }, 4000);
+  }, []);
+
   // Trigger floating saved toast
   const triggerSavedToast = () => {
     setShowSavedToast(true);
@@ -114,6 +144,7 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
   useEffect(() => {
     return () => {
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      if (feedbackToastTimeoutRef.current) clearTimeout(feedbackToastTimeoutRef.current);
     };
   }, []);
 
@@ -620,6 +651,218 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
       s.student_code.includes(searchQuery)
   );
 
+  // Active item targeted for Quick Fill
+  const activeQuickFillItem = useMemo(() => {
+    return (
+      currentSubjectItems.find((i) => i.id === quickFillItemId) ||
+      currentSubjectItems.find((i) => i.id === selectedItemId) ||
+      currentSubjectItems[0] ||
+      null
+    );
+  }, [currentSubjectItems, quickFillItemId, selectedItemId]);
+
+  // Sync quickFillItemId when selectedItemId or items change
+  useEffect(() => {
+    if (activeItem && (!quickFillItemId || !currentSubjectItems.some((i) => i.id === quickFillItemId))) {
+      setQuickFillItemId(activeItem.id);
+    }
+  }, [activeItem, currentSubjectItems, quickFillItemId]);
+
+  // Target students calculation for Quick Fill based on active filter
+  const targetStudents = useMemo(() => {
+    if (!activeQuickFillItem) return [];
+    return filteredStudents.filter((stu) => {
+      if (quickFillFilter === 'selected') {
+        return selectedStudentIds.has(stu.id);
+      }
+      const key = `${stu.id}_${activeQuickFillItem.id}`;
+      const cur = draftScores[key];
+      if (quickFillFilter === 'empty_only') {
+        return cur === undefined || cur.score === null || cur.score === undefined;
+      }
+      if (quickFillFilter === 'failing_only') {
+        return cur && typeof cur.score === 'number' && cur.score < activeQuickFillItem.max_score * 0.5;
+      }
+      return true; // 'all'
+    });
+  }, [filteredStudents, activeQuickFillItem, quickFillFilter, selectedStudentIds, draftScores]);
+
+  // Metrics for quick fill filters
+  const emptyScoresCount = useMemo(() => {
+    if (!activeQuickFillItem) return 0;
+    return filteredStudents.filter((stu) => {
+      const key = `${stu.id}_${activeQuickFillItem.id}`;
+      const cur = draftScores[key];
+      return cur === undefined || cur.score === null || cur.score === undefined;
+    }).length;
+  }, [filteredStudents, activeQuickFillItem, draftScores]);
+
+  const failingScoresCount = useMemo(() => {
+    if (!activeQuickFillItem) return 0;
+    return filteredStudents.filter((stu) => {
+      const key = `${stu.id}_${activeQuickFillItem.id}`;
+      const cur = draftScores[key];
+      return cur && typeof cur.score === 'number' && cur.score < activeQuickFillItem.max_score * 0.5;
+    }).length;
+  }, [filteredStudents, activeQuickFillItem, draftScores]);
+
+  // Selection handlers
+  const handleToggleStudentSelection = (studentId: string) => {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) {
+        next.delete(studentId);
+      } else {
+        next.add(studentId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllStudents = () => {
+    setSelectedStudentIds(new Set(filteredStudents.map((s) => s.id)));
+  };
+
+  const handleDeselectAllStudents = () => {
+    setSelectedStudentIds(new Set());
+  };
+
+  const handleSelectOddStudents = () => {
+    const oddIds = filteredStudents.filter((s) => s.student_no % 2 !== 0).map((s) => s.id);
+    setSelectedStudentIds(new Set(oddIds));
+  };
+
+  const handleSelectEvenStudents = () => {
+    const evenIds = filteredStudents.filter((s) => s.student_no % 2 === 0).map((s) => s.id);
+    setSelectedStudentIds(new Set(evenIds));
+  };
+
+  const handleInvertStudentSelection = () => {
+    const inverted = filteredStudents
+      .filter((s) => !selectedStudentIds.has(s.id))
+      .map((s) => s.id);
+    setSelectedStudentIds(new Set(inverted));
+  };
+
+  // Keyboard shortcut listener: Alt+Q to toggle Quick Fill, Escape to exit
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === 'q' || e.key === 'Q')) {
+        e.preventDefault();
+        setIsQuickFillMode((prev) => {
+          const next = !prev;
+          if (next && selectedStudentIds.size === 0) {
+            setSelectedStudentIds(new Set(filteredStudents.map((s) => s.id)));
+          }
+          return next;
+        });
+      } else if (e.key === 'Escape' && isQuickFillMode) {
+        setIsQuickFillMode(false);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isQuickFillMode, filteredStudents, selectedStudentIds.size]);
+
+  // Apply Quick Fill handler
+  const handleApplyQuickFill = (specificStudentId?: string) => {
+    if (!activeQuickFillItem) {
+      showNotification('warning', 'กรุณาเลือกชิ้นงาน / ภาระงาน', 'โปรดเลือกชิ้นงานหรือภาระงานที่ต้องการใส่คะแนนก่อน');
+      return;
+    }
+
+    const studentsToUpdate = specificStudentId
+      ? filteredStudents.filter((s) => s.id === specificStudentId)
+      : targetStudents;
+
+    if (studentsToUpdate.length === 0) {
+      showNotification('warning', 'ไม่พบนักเรียนตามเงื่อนไข', 'ไม่พบนักเรียนตามตัวกรองที่เลือก กรุณาเลือกนักเรียนหรือเปลี่ยนกลุ่มเป้าหมาย');
+      return;
+    }
+
+    let parsedScore: number | null = null;
+    if (quickFillStatus === 'normal') {
+      if (quickFillScore.trim() !== '') {
+        const val = parseFloat(quickFillScore);
+        if (isNaN(val)) {
+          showNotification('error', 'คะแนนไม่ถูกต้อง', 'กรุณาระบุคะแนนเป็นตัวเลข');
+          return;
+        }
+        if (val < 0) {
+          showNotification('error', 'คะแนนต้องไม่ติดลบ', 'กรุณาระบุคะแนนตั้งแต่ 0 ขึ้นไป');
+          return;
+        }
+        if (val > activeQuickFillItem.max_score) {
+          showNotification(
+            'warning',
+            'คะแนนเกินคะแนนเต็ม',
+            `คะแนน (${val}) เกินคะแนนเต็ม (${activeQuickFillItem.max_score}) ระบบได้ปรับเป็นคะแนนเต็ม (${activeQuickFillItem.max_score}) ให้อัตโนมัติ`
+          );
+          parsedScore = activeQuickFillItem.max_score;
+        } else {
+          parsedScore = val;
+        }
+      } else {
+        parsedScore = null;
+      }
+    } else {
+      parsedScore = null;
+    }
+
+    const updated = { ...draftScoresRef.current };
+    const updates: Array<Omit<Score, 'id'>> = [];
+
+    for (const stu of studentsToUpdate) {
+      const key = `${stu.id}_${activeQuickFillItem.id}`;
+      const note = updated[key]?.note || '';
+      updated[key] = {
+        studentId: stu.id,
+        itemId: activeQuickFillItem.id,
+        score: parsedScore,
+        status: quickFillStatus,
+        note,
+      };
+      updates.push({
+        student_id: stu.id,
+        score_item_id: activeQuickFillItem.id,
+        score: parsedScore,
+        status: quickFillStatus,
+        note,
+      });
+    }
+
+    setDraftScores(updated);
+    draftScoresRef.current = updated;
+    onAutoSaveStatusChange?.('saving');
+    storage.batchUpsertScores(updates);
+    isDirtyRef.current = false;
+    setAutoSaveStatus('saved');
+    const timeStr = new Date().toLocaleTimeString('th-TH', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    setLastSavedTime(timeStr);
+    onAutoSaveStatusChange?.('saved', timeStr);
+    triggerSavedToast();
+    onScoresUpdated();
+
+    const scoreDescription =
+      quickFillStatus === 'absent'
+        ? 'สถานะ: ขาดสอบ (ร)'
+        : quickFillStatus === 'missing'
+        ? 'สถานะ: ไม่ส่งงาน (มส)'
+        : parsedScore === null
+        ? 'ล้างเป็นค่าว่าง'
+        : `${parsedScore} / ${activeQuickFillItem.max_score} คะแนน`;
+
+    showNotification(
+      'success',
+      'บันทึกคะแนนด่วนสำเร็จ (Quick Fill)',
+      `บันทึกให้ ${studentsToUpdate.length} คน ในภาระงาน "${activeQuickFillItem.name}" (${scoreDescription})`
+    );
+  };
+
   // Compute live student term total based on draft scores
   const calculateStudentDraftTermTotal = (studentId: string) => {
     let total = 0;
@@ -690,6 +933,61 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
         </div>
       </div>
 
+      {/* Floating Feedback Notification Toast (Quick Fill, Warnings, Confirmations) */}
+      <div
+        className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ease-out transform ${
+          feedbackToast
+            ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+            : 'opacity-0 -translate-y-3 scale-95 pointer-events-none'
+        }`}
+        role="status"
+        aria-live="polite"
+      >
+        {feedbackToast && (
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md border text-xs sm:text-sm max-w-lg ${
+              feedbackToast.type === 'success'
+                ? 'bg-slate-900/95 text-white border-emerald-400/50'
+                : feedbackToast.type === 'warning'
+                ? 'bg-amber-950/95 text-amber-100 border-amber-400/50'
+                : 'bg-rose-950/95 text-rose-100 border-rose-400/50'
+            }`}
+          >
+            <div className="shrink-0">
+              {feedbackToast.type === 'success' ? (
+                <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-400 font-bold">
+                  <Check className="w-4 h-4" />
+                </div>
+              ) : feedbackToast.type === 'warning' ? (
+                <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-400 font-bold">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-rose-500/20 border border-rose-400/50 flex items-center justify-center text-rose-400 font-bold">
+                  <X className="w-4 h-4" />
+                </div>
+              )}
+            </div>
+            <div className="flex-1 pr-1">
+              <div className="font-bold text-white text-xs sm:text-sm flex items-center gap-1.5">
+                <span>{feedbackToast.title}</span>
+              </div>
+              <p className="text-[11px] sm:text-xs opacity-90 mt-0.5 leading-snug">
+                {feedbackToast.message}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFeedbackToast(null)}
+              className="p-1 hover:bg-white/10 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
+              title="ปิด"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Top Filter and Selectors Card */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
@@ -741,6 +1039,39 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
             >
               <Sliders className="w-4 h-4 text-indigo-600" />
               <span>สัดส่วนคะแนน</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsQuickFillMode((prev) => {
+                  const next = !prev;
+                  if (next && selectedStudentIds.size === 0) {
+                    setSelectedStudentIds(new Set(filteredStudents.map((s) => s.id)));
+                  }
+                  return next;
+                });
+              }}
+              className={`px-3 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                isQuickFillMode
+                  ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300 shadow-md'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300'
+              }`}
+              title="เปิด/ปิดโหมดใส่คะแนนด่วนสำหรับนักเรียนหลายคนพร้อมกัน (Alt+Q)"
+            >
+              <Zap
+                className={`w-4 h-4 ${
+                  isQuickFillMode ? 'fill-slate-950 text-slate-950' : 'text-amber-600'
+                }`}
+              />
+              <span>{isQuickFillMode ? 'โหมด Quick Fill (เปิด)' : 'โหมด Quick Fill'}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${
+                  isQuickFillMode ? 'bg-amber-700 text-white' : 'bg-amber-200 text-amber-900'
+                }`}
+              >
+                {isQuickFillMode ? 'ON' : 'ใหม่'}
+              </span>
             </button>
 
             <button
@@ -937,29 +1268,377 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
             />
           </div>
 
-          {viewMode === 'single' && activeItem && (
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-              <button
-                type="button"
-                onClick={() => handleFillMaxScore(activeItem.id, activeItem.max_score)}
-                className="px-2.5 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg border border-emerald-200 flex items-center gap-1 transition-colors"
-                title="ใส่คะแนนเต็มให้นักเรียนทุกคนในรายการนี้"
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setIsQuickFillMode((prev) => {
+                  const next = !prev;
+                  if (next && selectedStudentIds.size === 0) {
+                    setSelectedStudentIds(new Set(filteredStudents.map((s) => s.id)));
+                  }
+                  return next;
+                });
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                isQuickFillMode
+                  ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300'
+              }`}
+              title="เปิด/ปิดโหมดใส่คะแนนด่วน (Alt+Q)"
+            >
+              <Zap className={`w-3.5 h-3.5 ${isQuickFillMode ? 'fill-slate-950' : 'text-amber-600'}`} />
+              <span>{isQuickFillMode ? 'โหมด Quick Fill (เปิดอยู่)' : 'โหมด Quick Fill'}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${
+                  isQuickFillMode ? 'bg-amber-700 text-white' : 'bg-amber-200 text-amber-900'
+                }`}
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>ให้เต็ม {activeItem.max_score} ทุกคน</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleClearScores(activeItem.id)}
-                className="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg border border-slate-200 flex items-center gap-1 transition-colors"
-                title="ล้างคะแนนคอลัมน์นี้"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>ล้างคะแนน</span>
-              </button>
-            </div>
-          )}
+                {isQuickFillMode ? 'ON' : 'Alt+Q'}
+              </span>
+            </button>
+
+            {viewMode === 'single' && activeItem && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleFillMaxScore(activeItem.id, activeItem.max_score)}
+                  className="px-2.5 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg border border-emerald-200 flex items-center gap-1 transition-colors cursor-pointer"
+                  title="ใส่คะแนนเต็มให้นักเรียนทุกคนในรายการนี้"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>ให้เต็ม {activeItem.max_score} ทุกคน</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleClearScores(activeItem.id)}
+                  className="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg border border-slate-200 flex items-center gap-1 transition-colors cursor-pointer"
+                  title="ล้างคะแนนคอลัมน์นี้"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>ล้างคะแนน</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Quick Fill Control Panel (Interactive Banner when mode is active) */}
+        {isQuickFillMode && activeQuickFillItem && (
+          <div className="mt-4 pt-4 border-t border-amber-200 bg-gradient-to-r from-amber-50/80 via-amber-50/40 to-emerald-50/50 p-4 sm:p-5 rounded-2xl border border-amber-300 shadow-sm space-y-4 animate-in fade-in duration-200">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-200/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs">
+                  <Zap className="w-4 h-4 fill-slate-950" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <span>โหมดใส่คะแนนด่วน (Quick Fill Mode)</span>
+                    <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                      เปิดใช้งานอยู่
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    กำหนดคะแนนเดียวกันให้กับนักเรียนหลายคนพร้อมกันในครั้งเดียว สำหรับการบ้าน/งาน/ข้อสอบ
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <span className="text-[11px] text-slate-400 hidden md:inline">กด Esc เพื่อปิด</span>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickFillMode(false)}
+                  className="text-xs text-slate-500 hover:text-slate-800 px-2.5 py-1 rounded-lg hover:bg-slate-200/60 font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>ปิดโหมดนี้</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Form Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-end">
+              {/* 1. Target Assignment Selector (4 cols) */}
+              <div className="md:col-span-4 space-y-1">
+                <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>1. เลือกชิ้นงาน / ภาระงาน:</span>
+                  <span className="text-[11px] text-indigo-600 font-semibold">
+                    เต็ม {activeQuickFillItem.max_score} คะแนน
+                  </span>
+                </label>
+                <select
+                  value={activeQuickFillItem.id}
+                  onChange={(e) => {
+                    setQuickFillItemId(e.target.value);
+                    setSelectedItemId(e.target.value);
+                  }}
+                  className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-slate-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-2xs"
+                >
+                  {currentSubjectItems.map((item, idx) => (
+                    <option key={item.id} value={item.id}>
+                      {idx + 1}. {item.name} (เต็ม {item.max_score})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Target Score Input & Presets (5 cols) */}
+              <div className="md:col-span-5 space-y-1">
+                <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>2. ระบุคะแนนที่ต้องการใส่:</span>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    {quickFillStatus !== 'normal'
+                      ? quickFillStatus === 'absent'
+                        ? 'สถานะ: ขาดสอบ (ร)'
+                        : 'สถานะ: ไม่ส่งงาน (มส)'
+                      : quickFillScore === ''
+                      ? 'คะแนน: ล้าง/เว้นว่าง'
+                      : `คะแนน: ${quickFillScore}`}
+                  </span>
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max={activeQuickFillItem.max_score}
+                      disabled={quickFillStatus !== 'normal'}
+                      value={quickFillStatus !== 'normal' ? '' : quickFillScore}
+                      onChange={(e) => {
+                        setQuickFillStatus('normal');
+                        setQuickFillScore(e.target.value);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleApplyQuickFill();
+                        }
+                      }}
+                      placeholder={
+                        quickFillStatus === 'absent'
+                          ? 'ร (ขาดสอบ)'
+                          : quickFillStatus === 'missing'
+                          ? 'มส (ไม่ส่งงาน)'
+                          : 'ใส่คะแนน เช่น 8.5'
+                      }
+                      className="w-full px-3 py-2 text-sm font-bold bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-2xs text-center"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold pointer-events-none">
+                      / {activeQuickFillItem.max_score}
+                    </span>
+                  </div>
+
+                  {/* Quick status dropdown */}
+                  <select
+                    value={quickFillStatus}
+                    onChange={(e) => setQuickFillStatus(e.target.value as ScoreStatus)}
+                    className="px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-xl font-bold text-slate-700 shadow-2xs shrink-0 cursor-pointer"
+                  >
+                    <option value="normal">คะแนนปกติ</option>
+                    <option value="absent">ติด ร (ขาดสอบ)</option>
+                    <option value="missing">ติด มส (ไม่ส่ง)</option>
+                  </select>
+                </div>
+
+                {/* Quick Presets Bar */}
+                <div className="flex flex-wrap items-center gap-1 pt-1">
+                  <span className="text-[10px] text-slate-500 font-semibold mr-0.5">ลัด:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickFillStatus('normal');
+                      setQuickFillScore(activeQuickFillItem.max_score.toString());
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-md border border-emerald-300 transition-colors cursor-pointer"
+                  >
+                    เต็ม ({activeQuickFillItem.max_score})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickFillStatus('normal');
+                      setQuickFillScore(
+                        (Math.round(activeQuickFillItem.max_score * 0.8 * 10) / 10).toString()
+                      );
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-bold bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded-md border border-indigo-300 transition-colors cursor-pointer"
+                  >
+                    80% ({Math.round(activeQuickFillItem.max_score * 0.8 * 10) / 10})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickFillStatus('normal');
+                      setQuickFillScore(
+                        (Math.round(activeQuickFillItem.max_score * 0.5 * 10) / 10).toString()
+                      );
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-md border border-amber-300 transition-colors cursor-pointer"
+                  >
+                    50% ({Math.round(activeQuickFillItem.max_score * 0.5 * 10) / 10})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickFillStatus('normal');
+                      setQuickFillScore('0');
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-300 transition-colors cursor-pointer"
+                  >
+                    0
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickFillStatus('normal');
+                      setQuickFillScore('');
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-md border border-slate-300 transition-colors cursor-pointer"
+                  >
+                    ล้าง/เว้นว่าง
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickFillStatus('absent');
+                      setQuickFillScore('');
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-md border border-amber-300 transition-colors cursor-pointer"
+                  >
+                    ร
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickFillStatus('missing');
+                      setQuickFillScore('');
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-md border border-rose-300 transition-colors cursor-pointer"
+                  >
+                    มส
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Execute Button (3 cols) */}
+              <div className="md:col-span-3">
+                <button
+                  type="button"
+                  onClick={() => handleApplyQuickFill()}
+                  disabled={targetStudents.length === 0}
+                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 fill-white" />
+                  <span>บันทึกคะแนนด่วน ({targetStudents.length} คน)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4. Target Students Filter Bar */}
+            <div className="pt-3 border-t border-amber-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-bold text-slate-700 mr-1">กลุ่มเป้าหมาย:</span>
+                <button
+                  type="button"
+                  onClick={() => setQuickFillFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    quickFillFilter === 'all'
+                      ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  ทุกคนในห้อง ({filteredStudents.length} คน)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setQuickFillFilter('selected')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    quickFillFilter === 'selected'
+                      ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  เฉพาะคนที่ติ๊กเลือก ({selectedStudentIds.size} คน)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setQuickFillFilter('empty_only')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    quickFillFilter === 'empty_only'
+                      ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  เฉพาะคนที่ยังไม่มีคะแนน ({emptyScoresCount} คน)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setQuickFillFilter('failing_only')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    quickFillFilter === 'failing_only'
+                      ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  เฉพาะคนได้ &lt; 50% ({failingScoresCount} คน)
+                </button>
+              </div>
+
+              {/* Selection Helpers */}
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[10px] text-slate-400 font-semibold mr-1">เลือกด่วน:</span>
+                <button
+                  type="button"
+                  onClick={handleSelectAllStudents}
+                  className="px-2 py-0.5 text-[10px] font-semibold bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-200 transition-colors cursor-pointer"
+                >
+                  เลือกทุกคน
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeselectAllStudents}
+                  className="px-2 py-0.5 text-[10px] font-semibold bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-200 transition-colors cursor-pointer"
+                >
+                  ไม่เลือกเลย
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectOddStudents}
+                  className="px-2 py-0.5 text-[10px] font-semibold bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-200 transition-colors cursor-pointer"
+                >
+                  เลขคี่
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectEvenStudents}
+                  className="px-2 py-0.5 text-[10px] font-semibold bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-200 transition-colors cursor-pointer"
+                >
+                  เลขคู่
+                </button>
+                <button
+                  type="button"
+                  onClick={handleInvertStudentSelection}
+                  className="px-2 py-0.5 text-[10px] font-semibold bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-200 transition-colors cursor-pointer"
+                >
+                  สลับการเลือก
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Grading Table Card */}
@@ -996,11 +1675,56 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-100/75 border-b border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider">
+                    {isQuickFillMode && (
+                      <th className="py-3 px-3 text-center w-12 bg-amber-100/80 border-r border-amber-300">
+                        <input
+                          type="checkbox"
+                          checked={
+                            filteredStudents.length > 0 &&
+                            filteredStudents.every((s) => selectedStudentIds.has(s.id))
+                          }
+                          ref={(el) => {
+                            if (el) {
+                              const all =
+                                filteredStudents.length > 0 &&
+                                filteredStudents.every((s) => selectedStudentIds.has(s.id));
+                              const some = selectedStudentIds.size > 0 && !all;
+                              el.indeterminate = some;
+                            }
+                          }}
+                          onChange={() => {
+                            const all =
+                              filteredStudents.length > 0 &&
+                              filteredStudents.every((s) => selectedStudentIds.has(s.id));
+                            if (all) {
+                              handleDeselectAllStudents();
+                            } else {
+                              handleSelectAllStudents();
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 accent-amber-600 cursor-pointer"
+                          title="เลือกนักเรียนทุกคนสำหรับ Quick Fill"
+                        />
+                      </th>
+                    )}
                     <th className="py-3 px-3 sm:px-4 text-center w-16">เลขที่</th>
                     <th className="py-3 px-3 sm:px-4 w-28">รหัส</th>
                     <th className="py-3 px-4">ชื่อ - นามสกุล</th>
-                    <th className="py-3 px-4 text-center w-48 sm:w-56 bg-indigo-50/50">
-                      คะแนนที่ได้ (เต็ม {activeItem.max_score})
+                    <th
+                      className={`py-3 px-4 text-center w-48 sm:w-56 transition-colors ${
+                        isQuickFillMode && activeQuickFillItem?.id === activeItem.id
+                          ? 'bg-amber-100 text-amber-950 border-x-2 border-amber-400'
+                          : 'bg-indigo-50/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>คะแนนที่ได้ (เต็ม {activeItem.max_score})</span>
+                        {isQuickFillMode && activeQuickFillItem?.id === activeItem.id && (
+                          <span className="text-[10px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.2 rounded shadow-2xs">
+                            ⚡ QUICK FILL
+                          </span>
+                        )}
+                      </div>
                     </th>
                     <th className="py-3 px-3 sm:px-4 text-center w-36">สถานะพิเศษ</th>
                     <th className="py-3 px-4 text-center w-40">
@@ -1013,14 +1737,30 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                     const key = `${stu.id}_${activeItem.id}`;
                     const scoreData = draftScores[key] || { score: null, status: 'normal' };
                     const termCalc = calculateStudentDraftTermTotal(stu.id);
+                    const isSelected = selectedStudentIds.has(stu.id);
 
                     return (
                       <tr
                         key={stu.id}
-                        className={`hover:bg-indigo-50/30 transition-colors ${
-                          termCalc.isExceeded ? 'bg-rose-50/60' : ''
+                        className={`transition-colors ${
+                          isQuickFillMode && isSelected
+                            ? 'bg-amber-50/50 hover:bg-amber-50/80 border-l-4 border-l-amber-500'
+                            : termCalc.isExceeded
+                            ? 'bg-rose-50/60 hover:bg-rose-50/80'
+                            : 'hover:bg-indigo-50/30'
                         }`}
                       >
+                        {isQuickFillMode && (
+                          <td className="py-3 px-3 text-center w-12 bg-amber-50/20 border-r border-amber-100">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleStudentSelection(stu.id)}
+                              className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 accent-amber-600 cursor-pointer"
+                            />
+                          </td>
+                        )}
+
                         {/* เลขที่ */}
                         <td className="py-3 px-3 sm:px-4 text-center font-bold text-slate-600">
                           {stu.student_no}
@@ -1038,7 +1778,13 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                         </td>
 
                         {/* ช่องกรอกคะแนน (Focus Target) */}
-                        <td className="py-3 px-4 text-center bg-indigo-50/30">
+                        <td
+                          className={`py-3 px-4 text-center transition-colors ${
+                            isQuickFillMode && activeQuickFillItem?.id === activeItem.id
+                              ? 'bg-amber-50/40 border-x border-amber-300'
+                              : 'bg-indigo-50/30'
+                          }`}
+                        >
                           <div className="flex items-center justify-center gap-2">
                             <input
                               ref={(el) => {
@@ -1070,6 +1816,8 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                                   ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                                   : typeof scoreData.score === 'number' && scoreData.score > activeItem.max_score
                                   ? 'bg-rose-100 text-rose-700 border-rose-400 ring-2 ring-rose-300'
+                                  : isQuickFillMode && activeQuickFillItem?.id === activeItem.id
+                                  ? 'bg-white text-amber-950 border-amber-300 focus:border-amber-600 focus:ring-2 focus:ring-amber-400 shadow-inner'
                                   : 'bg-white text-indigo-900 border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-400 shadow-inner'
                               }`}
                             />
@@ -1077,10 +1825,32 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                               / {activeItem.max_score}
                             </span>
                           </div>
+
                           {typeof scoreData.score === 'number' && scoreData.score > activeItem.max_score && (
                             <div className="text-[11px] text-rose-600 font-bold mt-1">
                               ⚠️ เกินคะแนนเต็ม!
                             </div>
+                          )}
+
+                          {isQuickFillMode && activeQuickFillItem?.id === activeItem.id && (
+                            <button
+                              type="button"
+                              onClick={() => handleApplyQuickFill(stu.id)}
+                              className="text-[10px] px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded border border-amber-300 transition-colors shadow-2xs mt-1.5 cursor-pointer inline-flex items-center gap-1"
+                              title={`ใส่ค่านี้ให้ ${stu.name}`}
+                            >
+                              <Zap className="w-2.5 h-2.5 fill-amber-700 text-amber-700" />
+                              <span>
+                                ใส่{' '}
+                                {quickFillStatus !== 'normal'
+                                  ? quickFillStatus === 'absent'
+                                    ? 'ร'
+                                    : 'มส'
+                                  : quickFillScore === ''
+                                  ? 'ว่าง'
+                                  : quickFillScore}
+                              </span>
+                            </button>
                           )}
                         </td>
 
@@ -1186,23 +1956,96 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-700 font-bold">
-                  <th className="py-2.5 px-2 text-center w-12 sticky left-0 bg-slate-100 z-10">เลขที่</th>
-                  <th className="py-2.5 px-3 min-w-[160px] sticky left-12 bg-slate-100 z-10 border-r border-slate-200">
+                  {isQuickFillMode && (
+                    <th className="py-2.5 px-2 text-center w-10 sticky left-0 bg-amber-100 z-20 border-r border-amber-300">
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredStudents.length > 0 &&
+                          filteredStudents.every((s) => selectedStudentIds.has(s.id))
+                        }
+                        ref={(el) => {
+                          if (el) {
+                            const all =
+                              filteredStudents.length > 0 &&
+                              filteredStudents.every((s) => selectedStudentIds.has(s.id));
+                            const some = selectedStudentIds.size > 0 && !all;
+                            el.indeterminate = some;
+                          }
+                        }}
+                        onChange={() => {
+                          const all =
+                            filteredStudents.length > 0 &&
+                            filteredStudents.every((s) => selectedStudentIds.has(s.id));
+                          if (all) {
+                            handleDeselectAllStudents();
+                          } else {
+                            handleSelectAllStudents();
+                          }
+                        }}
+                        className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 accent-amber-600 cursor-pointer"
+                        title="เลือกนักเรียนทุกคนสำหรับ Quick Fill"
+                      />
+                    </th>
+                  )}
+                  <th
+                    className={`py-2.5 px-2 text-center w-12 sticky z-10 ${
+                      isQuickFillMode ? 'left-10 bg-amber-50/70 border-r border-amber-200' : 'left-0 bg-slate-100'
+                    }`}
+                  >
+                    เลขที่
+                  </th>
+                  <th
+                    className={`py-2.5 px-3 min-w-[160px] sticky z-10 border-r ${
+                      isQuickFillMode ? 'left-22 bg-amber-50/70 border-amber-200' : 'left-12 bg-slate-100 border-slate-200'
+                    }`}
+                  >
                     ชื่อ - นามสกุล
                   </th>
-                  {currentSubjectItems.map((item, itemIdx) => (
-                    <th
-                      key={item.id}
-                      className="py-2.5 px-2 text-center min-w-[110px] border-r border-slate-200 bg-indigo-50/40"
-                    >
-                      <div className="font-bold text-slate-800 truncate" title={item.name}>
-                        {item.name}
-                      </div>
-                      <div className="text-[10px] text-indigo-600 font-medium">
-                        (เต็ม {item.max_score})
-                      </div>
-                    </th>
-                  ))}
+                  {currentSubjectItems.map((item, itemIdx) => {
+                    const isTargetItem = isQuickFillMode && activeQuickFillItem?.id === item.id;
+                    return (
+                      <th
+                        key={item.id}
+                        onClick={() => {
+                          if (isQuickFillMode) {
+                            setQuickFillItemId(item.id);
+                            setSelectedItemId(item.id);
+                          }
+                        }}
+                        className={`py-2.5 px-2 text-center min-w-[110px] border-r border-slate-200 transition-colors select-none ${
+                          isTargetItem
+                            ? 'bg-amber-100 text-amber-950 border-x-2 border-amber-400 ring-2 ring-amber-300 ring-inset cursor-pointer'
+                            : isQuickFillMode
+                            ? 'bg-slate-50 hover:bg-amber-50/80 text-slate-800 cursor-pointer'
+                            : 'bg-indigo-50/40 text-slate-800'
+                        }`}
+                        title={
+                          isQuickFillMode
+                            ? isTargetItem
+                              ? `เป้าหมาย Quick Fill ปัจจุบัน (เต็ม ${item.max_score})`
+                              : `คลิกเพื่อเลือก "${item.name}" ในโหมด Quick Fill`
+                            : item.name
+                        }
+                      >
+                        <div className="font-bold truncate max-w-[120px] mx-auto flex items-center justify-center gap-1">
+                          <span>{item.name}</span>
+                          {isTargetItem && (
+                            <span className="text-[9px] bg-amber-500 text-slate-950 font-black px-1 py-0.2 rounded shadow-2xs">
+                              ⚡ QUICK
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className={`text-[10px] font-medium ${
+                            isTargetItem ? 'text-amber-900 font-bold' : 'text-indigo-600'
+                          }`}
+                        >
+                          (เต็ม {item.max_score})
+                        </div>
+                      </th>
+                    );
+                  })}
                   <th className="py-2.5 px-3 text-center min-w-[120px] bg-emerald-50 text-emerald-900 font-bold">
                     รวมเทอมนี้ (50)
                   </th>
@@ -1211,18 +2054,49 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {filteredStudents.map((stu, studentIdx) => {
                   const termCalc = calculateStudentDraftTermTotal(stu.id);
+                  const isSelected = selectedStudentIds.has(stu.id);
 
                   return (
                     <tr
                       key={stu.id}
-                      className={`hover:bg-indigo-50/20 ${
-                        termCalc.isExceeded ? 'bg-rose-50/50' : ''
+                      className={`transition-colors ${
+                        isQuickFillMode && isSelected
+                          ? 'bg-amber-50/60 hover:bg-amber-50/80 border-l-4 border-l-amber-500'
+                          : termCalc.isExceeded
+                          ? 'bg-rose-50/50 hover:bg-rose-50/70'
+                          : 'hover:bg-indigo-50/20'
                       }`}
                     >
-                      <td className="py-2 px-2 text-center font-bold text-slate-600 sticky left-0 bg-white">
+                      {isQuickFillMode && (
+                        <td
+                          className={`py-2 px-2 text-center w-10 sticky left-0 z-20 border-r border-amber-200 transition-colors ${
+                            isSelected ? 'bg-amber-100/90' : 'bg-white'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleStudentSelection(stu.id)}
+                            className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 accent-amber-600 cursor-pointer"
+                          />
+                        </td>
+                      )}
+                      <td
+                        className={`py-2 px-2 text-center font-bold text-slate-600 sticky transition-colors ${
+                          isQuickFillMode
+                            ? `left-10 border-r border-amber-100 ${isSelected ? 'bg-amber-50' : 'bg-white'}`
+                            : 'left-0 bg-white'
+                        }`}
+                      >
                         {stu.student_no}
                       </td>
-                      <td className="py-2 px-3 sticky left-12 bg-white border-r border-slate-200">
+                      <td
+                        className={`py-2 px-3 sticky border-r transition-colors ${
+                          isQuickFillMode
+                            ? `left-22 border-amber-200 ${isSelected ? 'bg-amber-50' : 'bg-white'}`
+                            : 'left-12 bg-white border-slate-200'
+                        }`}
+                      >
                         <div className="font-semibold text-slate-800 text-sm truncate max-w-[180px]">
                           {stu.name}
                         </div>
@@ -1231,11 +2105,14 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                       {currentSubjectItems.map((item, itemIdx) => {
                         const key = `${stu.id}_${item.id}`;
                         const scoreData = draftScores[key] || { score: null, status: 'normal' };
+                        const isTargetItem = isQuickFillMode && activeQuickFillItem?.id === item.id;
 
                         return (
                           <td
                             key={item.id}
-                            className="py-2 px-2 text-center border-r border-slate-100"
+                            className={`py-2 px-2 text-center border-r border-slate-100 transition-colors ${
+                              isTargetItem ? 'bg-amber-50/70 border-x-2 border-amber-300' : ''
+                            }`}
                           >
                             <div className="flex flex-col items-center gap-1">
                               <input
@@ -1263,36 +2140,52 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
                                     ? 'bg-slate-100 text-slate-400 border-slate-200'
                                     : typeof scoreData.score === 'number' && scoreData.score > item.max_score
                                     ? 'bg-rose-100 text-rose-700 border-rose-400'
+                                    : isTargetItem
+                                    ? 'bg-white text-amber-950 border-amber-400 focus:ring-2 focus:ring-amber-400'
                                     : 'bg-white text-indigo-950 border-slate-300 focus:ring-1 focus:ring-indigo-500'
                                 }`}
                               />
 
-                              {/* Tiny status indicator/toggle */}
+                              {/* Tiny status indicator/toggle or Quick Fill single apply */}
                               <div className="flex items-center gap-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleStatusToggle(stu.id, item.id, 'absent')}
-                                  title="ขาดสอบ (ร)"
-                                  className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                                    scoreData.status === 'absent'
-                                      ? 'bg-amber-500 text-white'
-                                      : 'bg-slate-100 text-slate-500 hover:bg-amber-100'
-                                  }`}
-                                >
-                                  ร
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleStatusToggle(stu.id, item.id, 'missing')}
-                                  title="ไม่ส่งงาน (มส)"
-                                  className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                                    scoreData.status === 'missing'
-                                      ? 'bg-rose-500 text-white'
-                                      : 'bg-slate-100 text-slate-500 hover:bg-rose-100'
-                                  }`}
-                                >
-                                  มส
-                                </button>
+                                {isTargetItem ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApplyQuickFill(stu.id)}
+                                    className="text-[9px] px-1.5 py-0.2 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded border border-amber-300 transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-0.5"
+                                    title={`ใส่ค่านี้ให้ ${stu.name}`}
+                                  >
+                                    <Zap className="w-2 h-2 fill-amber-700 text-amber-700" />
+                                    <span>ใส่</span>
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStatusToggle(stu.id, item.id, 'absent')}
+                                      title="ขาดสอบ (ร)"
+                                      className={`text-[9px] px-1 py-0.2 rounded font-bold ${
+                                        scoreData.status === 'absent'
+                                          ? 'bg-amber-500 text-white'
+                                          : 'bg-slate-100 text-slate-500 hover:bg-amber-100'
+                                      }`}
+                                    >
+                                      ร
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStatusToggle(stu.id, item.id, 'missing')}
+                                      title="ไม่ส่งงาน (มส)"
+                                      className={`text-[9px] px-1 py-0.2 rounded font-bold ${
+                                        scoreData.status === 'missing'
+                                          ? 'bg-rose-500 text-white'
+                                          : 'bg-slate-100 text-slate-500 hover:bg-rose-100'
+                                      }`}
+                                    >
+                                      มส
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -1322,6 +2215,71 @@ export const ScoreEntryPage: React.FC<ScoreEntryPageProps> = ({
           </div>
         )}
       </div>
+
+      {/* Floating Quick Fill Dock for Large Classes (Sticky Bottom Bar) */}
+      {isQuickFillMode && activeQuickFillItem && (
+        <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-4xl bg-slate-950/95 backdrop-blur-md text-white px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl shadow-2xl border border-amber-400/40 flex flex-wrap items-center justify-between gap-2.5 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
+              <Zap className="w-4 h-4 fill-slate-950" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-black text-xs text-amber-300">Quick Fill:</span>
+                <span className="font-bold text-xs sm:text-sm text-white truncate max-w-[180px] sm:max-w-[240px]">
+                  {activeQuickFillItem.name}
+                </span>
+                <span className="text-[10px] sm:text-[11px] text-amber-200/80 font-medium">
+                  (เต็ม {activeQuickFillItem.max_score})
+                </span>
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-slate-300 flex items-center gap-1 sm:gap-1.5 mt-0.5 flex-wrap">
+                <span>กลุ่ม:</span>
+                <span className="font-bold text-amber-300">
+                  {quickFillFilter === 'all'
+                    ? 'ทุกคน'
+                    : quickFillFilter === 'selected'
+                    ? `ที่ติ๊ก (${selectedStudentIds.size})`
+                    : quickFillFilter === 'empty_only'
+                    ? `ยังไม่มี (${emptyScoresCount})`
+                    : `ตก <50% (${failingScoresCount})`}
+                </span>
+                <span>• ค่าที่จะใส่:</span>
+                <span className="font-bold text-white bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
+                  {quickFillStatus === 'absent'
+                    ? 'ร (ขาด)'
+                    : quickFillStatus === 'missing'
+                    ? 'มส (ไม่ส่ง)'
+                    : quickFillScore === ''
+                    ? 'เว้นว่าง'
+                    : `${quickFillScore} คะแนน`}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => handleApplyQuickFill()}
+              disabled={targetStudents.length === 0}
+              className="px-3.5 sm:px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Zap className="w-3.5 h-3.5 fill-white" />
+              <span>บันทึกด่วน ({targetStudents.length} คน)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsQuickFillMode(false)}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              title="ปิดโหมดใส่คะแนนด่วน (Esc)"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Floating Quick Action / Tip Bar */}
       <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-indigo-900">

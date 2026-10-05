@@ -45,6 +45,12 @@ import {
   Zap,
   Lightbulb,
   Target,
+  Check,
+  PieChart,
+  Filter,
+  Maximize2,
+  Minimize2,
+  FolderCheck,
 } from 'lucide-react';
 
 interface StudentPortalPageProps {
@@ -75,9 +81,54 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
   const [searchError, setSearchError] = useState('');
   const [activeViewTab, setActiveViewTab] = useState<
-    'yearly' | 'term-1' | 'term-2' | 'progress'
+    'yearly' | 'breakdown' | 'term-1' | 'term-2' | 'progress'
   >('yearly');
   const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(null);
+  const [breakdownTermFilter, setBreakdownTermFilter] = useState<'all' | 'term-1' | 'term-2'>('all');
+  const [breakdownCategoryFilter, setBreakdownCategoryFilter] = useState<'all' | 'regular' | 'midterm' | 'final'>('all');
+  const [breakdownSearchQuery, setBreakdownSearchQuery] = useState('');
+  const [expandedYearlySubjectIds, setExpandedYearlySubjectIds] = useState<Set<string>>(new Set());
+  const [expandedBreakdownSubjectIds, setExpandedBreakdownSubjectIds] = useState<Set<string>>(new Set());
+
+  const handleToggleExpandYearlySubject = (subjectId: string) => {
+    setExpandedYearlySubjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(subjectId)) {
+        next.delete(subjectId);
+      } else {
+        next.add(subjectId);
+      }
+      return next;
+    });
+  };
+
+  const handleExpandAllYearlySubjects = () => {
+    setExpandedYearlySubjectIds(new Set(subjects.map((s) => s.id)));
+  };
+
+  const handleCollapseAllYearlySubjects = () => {
+    setExpandedYearlySubjectIds(new Set());
+  };
+
+  const handleToggleExpandBreakdownSubject = (subjectId: string) => {
+    setExpandedBreakdownSubjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(subjectId)) {
+        next.delete(subjectId);
+      } else {
+        next.add(subjectId);
+      }
+      return next;
+    });
+  };
+
+  const handleExpandAllBreakdownSubjects = () => {
+    setExpandedBreakdownSubjectIds(new Set(subjects.map((s) => s.id)));
+  };
+
+  const handleCollapseAllBreakdownSubjects = () => {
+    setExpandedBreakdownSubjectIds(new Set());
+  };
 
   useEffect(() => {
     if (initialStudent) {
@@ -216,6 +267,194 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
     const percentage = maxPossible > 0 ? Math.round((totalRaw / maxPossible) * 1000) / 10 : 0;
     return { totalRaw, maxPossible, percentage };
   }, [fullReport]);
+
+  // Helper to determine score category (regular / midterm / final)
+  const getItemCategory = (item: ScoreItem): 'regular' | 'midterm' | 'final' => {
+    if (item.category) return item.category;
+    const name = item.name.toLowerCase();
+    if (
+      name.includes('กลางภาค') ||
+      name.includes('midterm') ||
+      name.includes('กลาง') ||
+      name.includes('mid-term')
+    ) {
+      return 'midterm';
+    }
+    if (
+      name.includes('ปลายภาค') ||
+      name.includes('final') ||
+      name.includes('ปลาย') ||
+      name.includes('สอบปลาย')
+    ) {
+      return 'final';
+    }
+    return 'regular';
+  };
+
+  // Comprehensive score components breakdown for selected student
+  const detailedScoreBreakdown = useMemo(() => {
+    if (!selectedStudent) return null;
+
+    // Student score lookup map: key = score_item_id
+    const scoreMap = new Map<string, Score>();
+    allScores
+      .filter((s) => s.student_id === selectedStudent.id)
+      .forEach((s) => scoreMap.set(s.score_item_id, s));
+
+    let overallRegularEarned = 0;
+    let overallRegularMax = 0;
+    let overallMidtermEarned = 0;
+    let overallMidtermMax = 0;
+    let overallFinalEarned = 0;
+    let overallFinalMax = 0;
+
+    const subjectBreakdowns = subjects.map((subj) => {
+      const getTermCategoryBreakdown = (
+        termId: string,
+        category: 'regular' | 'midterm' | 'final'
+      ) => {
+        const catItems = allScoreItems.filter(
+          (i) =>
+            i.subject_id === subj.id &&
+            i.term_id === termId &&
+            getItemCategory(i) === category
+        );
+        let earned = 0;
+        let max = 0;
+        let hasAbsent = false;
+        let hasMissing = false;
+
+        const itemsWithScores = catItems.map((item) => {
+          const rec = scoreMap.get(item.id);
+          const score = rec?.score;
+          const status = rec?.status || 'normal';
+          const note = rec?.note;
+
+          max += item.max_score || 0;
+          if (status === 'normal' && typeof score === 'number') {
+            earned += score;
+          }
+          if (status === 'absent') hasAbsent = true;
+          if (status === 'missing') hasMissing = true;
+
+          return {
+            item,
+            score,
+            status,
+            note,
+          };
+        });
+
+        const percentage = max > 0 ? Math.round((earned / max) * 1000) / 10 : 0;
+        return {
+          earned: Math.round(earned * 10) / 10,
+          max,
+          percentage,
+          hasAbsent,
+          hasMissing,
+          itemsCount: catItems.length,
+          items: itemsWithScores,
+        };
+      };
+
+      const t1Regular = getTermCategoryBreakdown('term-1', 'regular');
+      const t1Midterm = getTermCategoryBreakdown('term-1', 'midterm');
+      const t1Final = getTermCategoryBreakdown('term-1', 'final');
+      const t1Total =
+        Math.round((t1Regular.earned + t1Midterm.earned + t1Final.earned) * 10) / 10;
+      const t1Max = t1Regular.max + t1Midterm.max + t1Final.max || 50;
+
+      const t2Regular = getTermCategoryBreakdown('term-2', 'regular');
+      const t2Midterm = getTermCategoryBreakdown('term-2', 'midterm');
+      const t2Final = getTermCategoryBreakdown('term-2', 'final');
+      const t2Total =
+        Math.round((t2Regular.earned + t2Midterm.earned + t2Final.earned) * 10) / 10;
+      const t2Max = t2Regular.max + t2Midterm.max + t2Final.max || 50;
+
+      const yearTotal = Math.min(100, Math.round((t1Total + t2Total) * 10) / 10);
+      const yearMax = t1Max + t2Max || 100;
+      const yearPercentage =
+        yearMax > 0 ? Math.round((yearTotal / yearMax) * 1000) / 10 : 0;
+      const gradeResult = calculateGrade(yearTotal);
+
+      // Accumulate overall
+      overallRegularEarned += t1Regular.earned + t2Regular.earned;
+      overallRegularMax += t1Regular.max + t2Regular.max;
+      overallMidtermEarned += t1Midterm.earned + t2Midterm.earned;
+      overallMidtermMax += t1Midterm.max + t2Midterm.max;
+      overallFinalEarned += t1Final.earned + t2Final.earned;
+      overallFinalMax += t1Final.max + t2Final.max;
+
+      return {
+        subject: subj,
+        term1: {
+          total: t1Total,
+          max: t1Max,
+          percentage: t1Max > 0 ? Math.round((t1Total / t1Max) * 1000) / 10 : 0,
+          regular: t1Regular,
+          midterm: t1Midterm,
+          final: t1Final,
+        },
+        term2: {
+          total: t2Total,
+          max: t2Max,
+          percentage: t2Max > 0 ? Math.round((t2Total / t2Max) * 1000) / 10 : 0,
+          regular: t2Regular,
+          midterm: t2Midterm,
+          final: t2Final,
+        },
+        yearTotal,
+        yearMax,
+        yearPercentage,
+        grade: gradeResult.grade,
+        gradePoint: gradeResult.gradePoint,
+        gradeBadge: gradeResult.badgeColor,
+        description: gradeResult.description,
+      };
+    });
+
+    const totalEarnedAll =
+      overallRegularEarned + overallMidtermEarned + overallFinalEarned;
+    const totalMaxAll = overallRegularMax + overallMidtermMax + overallFinalMax;
+
+    return {
+      overall: {
+        regular: {
+          earned: Math.round(overallRegularEarned * 10) / 10,
+          max: overallRegularMax,
+          percentage:
+            overallRegularMax > 0
+              ? Math.round((overallRegularEarned / overallRegularMax) * 1000) / 10
+              : 0,
+        },
+        midterm: {
+          earned: Math.round(overallMidtermEarned * 10) / 10,
+          max: overallMidtermMax,
+          percentage:
+            overallMidtermMax > 0
+              ? Math.round((overallMidtermEarned / overallMidtermMax) * 1000) / 10
+              : 0,
+        },
+        final: {
+          earned: Math.round(overallFinalEarned * 10) / 10,
+          max: overallFinalMax,
+          percentage:
+            overallFinalMax > 0
+              ? Math.round((overallFinalEarned / overallFinalMax) * 1000) / 10
+              : 0,
+        },
+        total: {
+          earned: Math.round(totalEarnedAll * 10) / 10,
+          max: totalMaxAll,
+          percentage:
+            totalMaxAll > 0
+              ? Math.round((totalEarnedAll / totalMaxAll) * 1000) / 10
+              : 0,
+        },
+      },
+      subjects: subjectBreakdowns,
+    };
+  }, [selectedStudent, subjects, allScoreItems, allScores]);
 
   // Sample student codes for quick testing
   const sampleStudents = useMemo(() => {
@@ -629,6 +868,162 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
               </div>
             </div>
 
+            {/* Detailed Score Structure Overview (โครงสร้างสัดส่วนคะแนนสะสม 3 ส่วนหลัก) */}
+            {detailedScoreBreakdown && (
+              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-black shadow-2xs">
+                      <PieChart className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                        <span>แจงโครงสร้างสัดส่วนคะแนน (3 ส่วนหลักตามเกณฑ์ สพฐ.)</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold">
+                          สพฐ.
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        คะแนนรวมคำนวณจาก: 1. คะแนนเก็บระหว่างเรียน + 2. สอบกลางภาค + 3. สอบปลายภาค
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveViewTab('breakdown')}
+                    className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-200 transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>ดูแจงคะแนนแบบละเอียดทุกชิ้นงาน</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                  {/* Part 1: Regular Formative Work */}
+                  <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+                          1
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-emerald-950">คะแนนเก็บระหว่างเรียน</div>
+                          <div className="text-[10px] text-emerald-700">ใบงาน / แบบฝึกหัด / จิตพิสัย</div>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        {detailedScoreBreakdown.overall.regular.percentage}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline justify-between text-xs pt-1">
+                      <span className="text-slate-500 font-medium">คะแนนที่ได้สะสม:</span>
+                      <span className="font-bold text-emerald-900 text-sm font-mono">
+                        {detailedScoreBreakdown.overall.regular.earned}{' '}
+                        <span className="text-slate-400 font-normal text-xs">
+                          / {detailedScoreBreakdown.overall.regular.max}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-emerald-100/70 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-emerald-600 h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            detailedScoreBreakdown.overall.regular.percentage
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Part 2: Midterm */}
+                  <div className="p-4 rounded-2xl bg-sky-50/50 border border-sky-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-xs">
+                          2
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-sky-950">คะแนนสอบกลางภาค</div>
+                          <div className="text-[10px] text-sky-700">การวัดผลกลางภาคเรียน</div>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-black text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
+                        {detailedScoreBreakdown.overall.midterm.percentage}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline justify-between text-xs pt-1">
+                      <span className="text-slate-500 font-medium">คะแนนที่ได้สะสม:</span>
+                      <span className="font-bold text-sky-900 text-sm font-mono">
+                        {detailedScoreBreakdown.overall.midterm.earned}{' '}
+                        <span className="text-slate-400 font-normal text-xs">
+                          / {detailedScoreBreakdown.overall.midterm.max}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-sky-100/70 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-sky-600 h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            detailedScoreBreakdown.overall.midterm.percentage
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Part 3: Final */}
+                  <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-xs">
+                          3
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-purple-950">คะแนนสอบปลายภาค</div>
+                          <div className="text-[10px] text-purple-700">การวัดผลปลายภาคเรียน</div>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-black text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">
+                        {detailedScoreBreakdown.overall.final.percentage}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline justify-between text-xs pt-1">
+                      <span className="text-slate-500 font-medium">คะแนนที่ได้สะสม:</span>
+                      <span className="font-bold text-purple-900 text-sm font-mono">
+                        {detailedScoreBreakdown.overall.final.earned}{' '}
+                        <span className="text-slate-400 font-normal text-xs">
+                          / {detailedScoreBreakdown.overall.final.max}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-purple-100/70 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-purple-600 h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            detailedScoreBreakdown.overall.final.percentage
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Alert banner if student has absent / missing assignments */}
             {statusSummary.issues.length > 0 && (
               <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl text-xs sm:text-sm text-amber-900 shadow-2xs">
@@ -784,11 +1179,11 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
             })()}
 
             {/* Tab Navigation for Views */}
-            <div className="flex items-center gap-2 border-b border-slate-200 pb-3 no-print">
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-3 no-print overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setActiveViewTab('yearly')}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
                   activeViewTab === 'yearly'
                     ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -800,8 +1195,34 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
 
               <button
                 type="button"
+                onClick={() => setActiveViewTab('breakdown')}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                  activeViewTab === 'breakdown'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-sm font-black ring-2 ring-amber-300'
+                    : 'bg-white text-slate-700 hover:bg-amber-50/70 border border-slate-200'
+                }`}
+              >
+                <Layers
+                  className={`w-4 h-4 ${
+                    activeViewTab === 'breakdown' ? 'fill-slate-950 text-slate-950' : 'text-amber-600'
+                  }`}
+                />
+                <span>แจงรายละเอียดคะแนนทุกส่วน</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${
+                    activeViewTab === 'breakdown'
+                      ? 'bg-amber-700 text-white'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  3 ส่วนหลัก
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveViewTab('term-1')}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
                   activeViewTab === 'term-1'
                     ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -814,7 +1235,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveViewTab('term-2')}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
                   activeViewTab === 'term-2'
                     ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -827,7 +1248,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveViewTab('progress')}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
                   activeViewTab === 'progress'
                     ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -855,18 +1276,41 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
             {/* VIEW 1: Yearly Summary Table */}
             {activeViewTab === 'yearly' && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                       <FileText className="w-5 h-5 text-indigo-600" />
                       <span>ตารางสรุปผลการเรียนทุกรายวิชา (ตลอดปีการศึกษา)</span>
                     </h3>
                     <p className="text-xs text-slate-500">
-                      คะแนนเต็มแต่ละภาคเรียน 50 คะแนน รวมทั้งปี 100 คะแนน ตัดเกรดตามเกณฑ์ สพฐ.
+                      คะแนนเต็มแต่ละภาคเรียน 50 คะแนน รวมทั้งปี 100 คะแนน • คลิกที่ชื่อวิชาหรือปุ่มเพื่อดูแจงคะแนน 3 ส่วน
                     </p>
                   </div>
-                  <div className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 self-start sm:self-auto">
-                    เกรดเฉลี่ยสะสม GPA: {fullReport?.gpa.toFixed(2)}
+                  <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                    <button
+                      type="button"
+                      onClick={
+                        expandedYearlySubjectIds.size === subjects.length
+                          ? handleCollapseAllYearlySubjects
+                          : handleExpandAllYearlySubjects
+                      }
+                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      {expandedYearlySubjectIds.size === subjects.length ? (
+                        <>
+                          <Minimize2 className="w-3.5 h-3.5" />
+                          <span>ย่อรายละเอียดทั้งหมด</span>
+                        </>
+                      ) : (
+                        <>
+                          <Maximize2 className="w-3.5 h-3.5" />
+                          <span>ขยายดูแจงคะแนนทุกวิชา</span>
+                        </>
+                      )}
+                    </button>
+                    <div className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-xl border border-indigo-100">
+                      เกรดเฉลี่ยสะสม GPA: {fullReport?.gpa.toFixed(2)}
+                    </div>
                   </div>
                 </div>
 
@@ -874,6 +1318,7 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                   <table className="w-full text-left text-sm text-slate-700 border-collapse">
                     <thead className="bg-slate-50 text-xs font-bold text-slate-600 border-b border-slate-200">
                       <tr>
+                        <th className="py-3 px-2 text-center w-10"></th>
                         <th className="py-3 px-3 sm:px-4 text-center w-12">ที่</th>
                         <th className="py-3 px-3 sm:px-4">รหัสวิชา</th>
                         <th className="py-3 px-3 sm:px-4">ชื่อรายวิชา</th>
@@ -888,52 +1333,288 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                     <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
                       {fullReport?.subjects.map((s, idx) => {
                         const gradeInfo = calculateGrade(s.total_score);
+                        const isExpanded = expandedYearlySubjectIds.has(s.subject.id);
+                        const subjBreakdown = detailedScoreBreakdown?.subjects.find(
+                          (sb) => sb.subject.id === s.subject.id
+                        );
+
                         return (
-                          <tr key={s.subject.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3 px-3 sm:px-4 text-center font-mono text-slate-400">
-                              {idx + 1}
-                            </td>
-                            <td className="py-3 px-3 sm:px-4 font-mono font-medium text-slate-600">
-                              {s.subject.code}
-                            </td>
-                            <td className="py-3 px-3 sm:px-4 font-semibold text-slate-900">
-                              {s.subject.name}
-                            </td>
-                            <td className="py-3 px-3 sm:px-4 text-center font-medium">
-                              {s.subject.credit.toFixed(1)}
-                            </td>
-                            <td className="py-3 px-3 sm:px-4 text-center font-mono">
-                              {s.term1_score}
-                            </td>
-                            <td className="py-3 px-3 sm:px-4 text-center font-mono">
-                              {s.term2_score}
-                            </td>
-                            <td className="py-3 px-3 sm:px-4 text-center font-mono font-bold text-indigo-700 bg-indigo-50/30">
-                              {s.total_score}
-                            </td>
-                            <td className="py-3 px-3 sm:px-4 text-center font-bold">
-                              <span
-                                className={`inline-block px-2.5 py-0.5 rounded-lg border text-xs font-black ${
-                                  s.status !== 'ปกติ'
-                                    ? 'bg-rose-100 text-rose-800 border-rose-300'
-                                    : gradeInfo.badgeColor
-                                }`}
-                              >
-                                {s.status !== 'ปกติ' ? s.status : s.grade}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 sm:px-4 text-center text-xs text-slate-600">
-                              {s.status !== 'ปกติ'
-                                ? (s.status === 'ร' ? 'รอการตัดสิน' : 'ไม่สมบูรณ์')
-                                : gradeInfo.description}
-                            </td>
-                          </tr>
+                          <React.Fragment key={s.subject.id}>
+                            <tr
+                              onClick={() => handleToggleExpandYearlySubject(s.subject.id)}
+                              className={`transition-colors cursor-pointer ${
+                                isExpanded
+                                  ? 'bg-indigo-50/40 border-l-4 border-l-indigo-600'
+                                  : 'hover:bg-slate-50/80'
+                              }`}
+                            >
+                              <td className="py-3 px-2 text-center text-slate-400">
+                                {isExpanded ? (
+                                  <ChevronDown className="w-4 h-4 text-indigo-600 mx-auto" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-slate-400 mx-auto" />
+                                )}
+                              </td>
+                              <td className="py-3 px-3 sm:px-4 text-center font-mono text-slate-400">
+                                {idx + 1}
+                              </td>
+                              <td className="py-3 px-3 sm:px-4 font-mono font-medium text-slate-600">
+                                {s.subject.code}
+                              </td>
+                              <td className="py-3 px-3 sm:px-4 font-semibold text-slate-900">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{s.subject.name}</span>
+                                  <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100 font-normal">
+                                    คลิกดูแจงคะแนน
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 sm:px-4 text-center font-medium">
+                                {s.subject.credit.toFixed(1)}
+                              </td>
+                              <td className="py-3 px-3 sm:px-4 text-center font-mono">
+                                {s.term1_score}
+                              </td>
+                              <td className="py-3 px-3 sm:px-4 text-center font-mono">
+                                {s.term2_score}
+                              </td>
+                              <td className="py-3 px-3 sm:px-4 text-center font-mono font-bold text-indigo-700 bg-indigo-50/30">
+                                {s.total_score}
+                              </td>
+                              <td className="py-3 px-3 sm:px-4 text-center font-bold">
+                                <span
+                                  className={`inline-block px-2.5 py-0.5 rounded-lg border text-xs font-black ${
+                                    s.status !== 'ปกติ'
+                                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                      : gradeInfo.badgeColor
+                                  }`}
+                                >
+                                  {s.status !== 'ปกติ' ? s.status : s.grade}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 sm:px-4 text-center text-xs text-slate-600">
+                                {s.status !== 'ปกติ'
+                                  ? s.status === 'ร'
+                                    ? 'รอการตัดสิน'
+                                    : 'ไม่สมบูรณ์'
+                                  : gradeInfo.description}
+                              </td>
+                            </tr>
+
+                            {/* Inline Expandable 3-part Score Breakdown */}
+                            {isExpanded && subjBreakdown && (
+                              <tr className="bg-slate-50/90 border-y border-indigo-100/80 animate-in fade-in duration-150">
+                                <td colSpan={10} className="p-4 sm:p-5">
+                                  <div className="bg-white rounded-2xl p-4 sm:p-5 border border-indigo-200/80 shadow-xs space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                                          <Layers className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                          <h4 className="font-bold text-sm text-slate-900">
+                                            แจงรายละเอียดคะแนนวิชา {s.subject.name} ({s.subject.code})
+                                          </h4>
+                                          <p className="text-[11px] text-slate-500">
+                                            แจกแจงตาม 3 ส่วนหลัก: คะแนนเก็บระหว่างเรียน + สอบกลางภาค + สอบปลายภาค
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveViewTab('breakdown');
+                                        }}
+                                        className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <span>เปิดหน้าแจงคะแนนแบบเต็ม</span>
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+
+                                    {/* 3 Components Mini Cards */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                                      {/* 1. Regular */}
+                                      <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-bold text-emerald-950 flex items-center gap-1.5">
+                                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-[10px]">
+                                              1
+                                            </span>
+                                            <span>คะแนนเก็บระหว่างเรียน</span>
+                                          </span>
+                                          <span className="font-black text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded text-[10px]">
+                                            {Math.round(
+                                              ((subjBreakdown.term1.regular.earned +
+                                                subjBreakdown.term2.regular.earned) /
+                                                Math.max(
+                                                  1,
+                                                  subjBreakdown.term1.regular.max +
+                                                    subjBreakdown.term2.regular.max
+                                                )) *
+                                                100
+                                            )}
+                                            %
+                                          </span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-600 flex justify-between">
+                                          <span>เทอม 1: {subjBreakdown.term1.regular.earned} / {subjBreakdown.term1.regular.max}</span>
+                                          <span>เทอม 2: {subjBreakdown.term2.regular.earned} / {subjBreakdown.term2.regular.max}</span>
+                                        </div>
+                                        <div className="font-bold text-emerald-900 text-xs">
+                                          รวมทั้งปี: {subjBreakdown.term1.regular.earned + subjBreakdown.term2.regular.earned} /{' '}
+                                          {subjBreakdown.term1.regular.max + subjBreakdown.term2.regular.max} คะแนน
+                                        </div>
+                                      </div>
+
+                                      {/* 2. Midterm */}
+                                      <div className="p-3 rounded-xl bg-sky-50/60 border border-sky-200 space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-bold text-sky-950 flex items-center gap-1.5">
+                                            <span className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-[10px]">
+                                              2
+                                            </span>
+                                            <span>คะแนนสอบกลางภาค</span>
+                                          </span>
+                                          <span className="font-black text-sky-800 bg-sky-100 px-1.5 py-0.2 rounded text-[10px]">
+                                            {Math.round(
+                                              ((subjBreakdown.term1.midterm.earned +
+                                                subjBreakdown.term2.midterm.earned) /
+                                                Math.max(
+                                                  1,
+                                                  subjBreakdown.term1.midterm.max +
+                                                    subjBreakdown.term2.midterm.max
+                                                )) *
+                                                100
+                                            )}
+                                            %
+                                          </span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-600 flex justify-between">
+                                          <span>เทอม 1: {subjBreakdown.term1.midterm.earned} / {subjBreakdown.term1.midterm.max}</span>
+                                          <span>เทอม 2: {subjBreakdown.term2.midterm.earned} / {subjBreakdown.term2.midterm.max}</span>
+                                        </div>
+                                        <div className="font-bold text-sky-900 text-xs">
+                                          รวมทั้งปี: {subjBreakdown.term1.midterm.earned + subjBreakdown.term2.midterm.earned} /{' '}
+                                          {subjBreakdown.term1.midterm.max + subjBreakdown.term2.midterm.max} คะแนน
+                                        </div>
+                                      </div>
+
+                                      {/* 3. Final */}
+                                      <div className="p-3 rounded-xl bg-purple-50/60 border border-purple-200 space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-bold text-purple-950 flex items-center gap-1.5">
+                                            <span className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-[10px]">
+                                              3
+                                            </span>
+                                            <span>คะแนนสอบปลายภาค</span>
+                                          </span>
+                                          <span className="font-black text-purple-800 bg-purple-100 px-1.5 py-0.2 rounded text-[10px]">
+                                            {Math.round(
+                                              ((subjBreakdown.term1.final.earned +
+                                                subjBreakdown.term2.final.earned) /
+                                                Math.max(
+                                                  1,
+                                                  subjBreakdown.term1.final.max +
+                                                    subjBreakdown.term2.final.max
+                                                )) *
+                                                100
+                                            )}
+                                            %
+                                          </span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-600 flex justify-between">
+                                          <span>เทอม 1: {subjBreakdown.term1.final.earned} / {subjBreakdown.term1.final.max}</span>
+                                          <span>เทอม 2: {subjBreakdown.term2.final.earned} / {subjBreakdown.term2.final.max}</span>
+                                        </div>
+                                        <div className="font-bold text-purple-900 text-xs">
+                                          รวมทั้งปี: {subjBreakdown.term1.final.earned + subjBreakdown.term2.final.earned} /{' '}
+                                          {subjBreakdown.term1.final.max + subjBreakdown.term2.final.max} คะแนน
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Itemized table for this subject */}
+                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                      <div className="bg-slate-100/80 px-3 py-2 text-xs font-bold text-slate-700 flex items-center justify-between">
+                                        <span>รายการชิ้นงานและข้อสอบทั้งหมดในวิชานี้</span>
+                                        <span className="text-[11px] text-slate-500 font-normal">
+                                          รวม{' '}
+                                          {subjBreakdown.term1.regular.itemsCount +
+                                            subjBreakdown.term1.midterm.itemsCount +
+                                            subjBreakdown.term1.final.itemsCount +
+                                            subjBreakdown.term2.regular.itemsCount +
+                                            subjBreakdown.term2.midterm.itemsCount +
+                                            subjBreakdown.term2.final.itemsCount}{' '}
+                                          รายการ
+                                        </span>
+                                      </div>
+                                      <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                                        {[
+                                          ...subjBreakdown.term1.regular.items.map((i) => ({ ...i, term: 'เทอม 1', catLabel: 'คะแนนเก็บ', catColor: 'bg-emerald-100 text-emerald-800' })),
+                                          ...subjBreakdown.term1.midterm.items.map((i) => ({ ...i, term: 'เทอม 1', catLabel: 'กลางภาค', catColor: 'bg-sky-100 text-sky-800' })),
+                                          ...subjBreakdown.term1.final.items.map((i) => ({ ...i, term: 'เทอม 1', catLabel: 'ปลายภาค', catColor: 'bg-purple-100 text-purple-800' })),
+                                          ...subjBreakdown.term2.regular.items.map((i) => ({ ...i, term: 'เทอม 2', catLabel: 'คะแนนเก็บ', catColor: 'bg-emerald-100 text-emerald-800' })),
+                                          ...subjBreakdown.term2.midterm.items.map((i) => ({ ...i, term: 'เทอม 2', catLabel: 'กลางภาค', catColor: 'bg-sky-100 text-sky-800' })),
+                                          ...subjBreakdown.term2.final.items.map((i) => ({ ...i, term: 'เทอม 2', catLabel: 'ปลายภาค', catColor: 'bg-purple-100 text-purple-800' })),
+                                        ].map((it, itemIdx) => (
+                                          <div
+                                            key={`${it.item.id}_${itemIdx}`}
+                                            className="px-3.5 py-2 flex items-center justify-between text-xs hover:bg-slate-50"
+                                          >
+                                            <div className="flex items-center gap-2 min-w-0 pr-2">
+                                              <span className="text-[10px] text-slate-400 font-mono w-6">
+                                                #{itemIdx + 1}
+                                              </span>
+                                              <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold shrink-0 ${it.catColor}`}>
+                                                {it.catLabel}
+                                              </span>
+                                              <span className="text-[10px] text-slate-500 font-semibold shrink-0">
+                                                [{it.term}]
+                                              </span>
+                                              <span className="font-medium text-slate-800 truncate">
+                                                {it.item.name}
+                                              </span>
+                                              {it.note && (
+                                                <span className="text-[10px] text-slate-400 italic shrink-0">
+                                                  ({it.note})
+                                                </span>
+                                              )}
+                                            </div>
+
+                                            <div className="shrink-0 text-right">
+                                              {it.status === 'absent' ? (
+                                                <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold text-[10px]">
+                                                  ขาดสอบ (ร)
+                                                </span>
+                                              ) : it.status === 'missing' ? (
+                                                <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">
+                                                  ไม่ส่งงาน (มส)
+                                                </span>
+                                              ) : typeof it.score === 'number' ? (
+                                                <span className="font-bold font-mono text-slate-900">
+                                                  {it.score} <span className="text-slate-400 font-normal">/ {it.item.max_score}</span>
+                                                </span>
+                                              ) : (
+                                                <span className="text-slate-400 italic">ยังไม่กรอก</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
                     <tfoot className="bg-slate-50 font-bold text-xs sm:text-sm text-slate-800 border-t-2 border-slate-200">
                       <tr>
-                        <td colSpan={3} className="py-3.5 px-4 text-right">
+                        <td colSpan={4} className="py-3.5 px-4 text-right">
                           รวมหน่วยกิตและเฉลี่ยสะสม:
                         </td>
                         <td className="py-3.5 px-4 text-center font-mono text-indigo-700">
@@ -950,6 +1631,569 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                       </tr>
                     </tfoot>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW: Comprehensive Score Breakdown (แจงรายละเอียดคะแนนทุกส่วนอย่างละเอียด 3 ส่วนหลัก) */}
+            {activeViewTab === 'breakdown' && detailedScoreBreakdown && (
+              <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
+                {/* Control and Filter Bar */}
+                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                        <Layers className="w-5 h-5 text-amber-500" />
+                        <span>แจงรายละเอียดส่วนประกอบคะแนนครบทุกส่วน</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        โครงสร้างคะแนนแบ่งออกเป็น 3 ส่วนหลัก: คะแนนเก็บระหว่างเรียน, สอบกลางภาค และสอบปลายภาค
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={
+                          expandedBreakdownSubjectIds.size === subjects.length
+                            ? handleCollapseAllBreakdownSubjects
+                            : handleExpandAllBreakdownSubjects
+                        }
+                        className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer flex items-center gap-1.5"
+                      >
+                        {expandedBreakdownSubjectIds.size === subjects.length ? (
+                          <>
+                            <Minimize2 className="w-3.5 h-3.5" />
+                            <span>ย่อทุกวิชา</span>
+                          </>
+                        ) : (
+                          <>
+                            <Maximize2 className="w-3.5 h-3.5" />
+                            <span>ขยายทุกวิชา</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filters Grid */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                    {/* Term Selector */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-slate-700 mr-1 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                        <span>ภาคเรียน:</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setBreakdownTermFilter('all')}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                          breakdownTermFilter === 'all'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        ทั้งปีการศึกษา (100)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBreakdownTermFilter('term-1')}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                          breakdownTermFilter === 'term-1'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        ภาคเรียนที่ 1 (50)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBreakdownTermFilter('term-2')}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                          breakdownTermFilter === 'term-2'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        ภาคเรียนที่ 2 (50)
+                      </button>
+                    </div>
+
+                    {/* Category Selector */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-slate-700 mr-1 flex items-center gap-1">
+                        <Filter className="w-3.5 h-3.5 text-slate-500" />
+                        <span>ส่วนคะแนน:</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setBreakdownCategoryFilter('all')}
+                        className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                          breakdownCategoryFilter === 'all'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        ทั้งหมด (3 ส่วน)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBreakdownCategoryFilter('regular')}
+                        className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                          breakdownCategoryFilter === 'regular'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                        }`}
+                      >
+                        1. คะแนนเก็บ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBreakdownCategoryFilter('midterm')}
+                        className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                          breakdownCategoryFilter === 'midterm'
+                            ? 'bg-sky-600 text-white'
+                            : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
+                        }`}
+                      >
+                        2. กลางภาค
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBreakdownCategoryFilter('final')}
+                        className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                          breakdownCategoryFilter === 'final'
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
+                        }`}
+                      >
+                        3. ปลายภาค
+                      </button>
+                    </div>
+
+                    {/* Search query input */}
+                    <div className="relative w-full md:w-56">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        value={breakdownSearchQuery}
+                        onChange={(e) => setBreakdownSearchQuery(e.target.value)}
+                        placeholder="ค้นหาชิ้นงาน หรือชื่อวิชา..."
+                        className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subject Cards with Full Breakdown */}
+                <div className="space-y-4">
+                  {detailedScoreBreakdown.subjects
+                    .filter((sb) => {
+                      if (!breakdownSearchQuery.trim()) return true;
+                      const q = breakdownSearchQuery.trim().toLowerCase();
+                      const matchSubj =
+                        sb.subject.name.toLowerCase().includes(q) ||
+                        sb.subject.code.toLowerCase().includes(q);
+                      if (matchSubj) return true;
+                      // Match inside any item
+                      const allItems = [
+                        ...sb.term1.regular.items,
+                        ...sb.term1.midterm.items,
+                        ...sb.term1.final.items,
+                        ...sb.term2.regular.items,
+                        ...sb.term2.midterm.items,
+                        ...sb.term2.final.items,
+                      ];
+                      return allItems.some((i) => i.item.name.toLowerCase().includes(q));
+                    })
+                    .map((sb) => {
+                      const isCollapsed = expandedBreakdownSubjectIds.has(sb.subject.id);
+                      // Determine visible categories
+                      const showRegular =
+                        breakdownCategoryFilter === 'all' || breakdownCategoryFilter === 'regular';
+                      const showMidterm =
+                        breakdownCategoryFilter === 'all' || breakdownCategoryFilter === 'midterm';
+                      const showFinal =
+                        breakdownCategoryFilter === 'all' || breakdownCategoryFilter === 'final';
+
+                      // Compute active terms items
+                      const getActiveCategoryData = (cat: 'regular' | 'midterm' | 'final') => {
+                        if (breakdownTermFilter === 'term-1') {
+                          return sb.term1[cat];
+                        }
+                        if (breakdownTermFilter === 'term-2') {
+                          return sb.term2[cat];
+                        }
+                        // 'all': combine term1 and term2
+                        const t1 = sb.term1[cat];
+                        const t2 = sb.term2[cat];
+                        const earned = Math.round((t1.earned + t2.earned) * 10) / 10;
+                        const max = t1.max + t2.max;
+                        const percentage = max > 0 ? Math.round((earned / max) * 1000) / 10 : 0;
+                        return {
+                          earned,
+                          max,
+                          percentage,
+                          hasAbsent: t1.hasAbsent || t2.hasAbsent,
+                          hasMissing: t1.hasMissing || t2.hasMissing,
+                          itemsCount: t1.itemsCount + t2.itemsCount,
+                          items: [
+                            ...t1.items.map((i) => ({ ...i, termName: 'เทอม 1' })),
+                            ...t2.items.map((i) => ({ ...i, termName: 'เทอม 2' })),
+                          ],
+                        };
+                      };
+
+                      const regularData = getActiveCategoryData('regular');
+                      const midtermData = getActiveCategoryData('midterm');
+                      const finalData = getActiveCategoryData('final');
+
+                      const currentScoreTotal =
+                        breakdownTermFilter === 'term-1'
+                          ? sb.term1.total
+                          : breakdownTermFilter === 'term-2'
+                          ? sb.term2.total
+                          : sb.yearTotal;
+
+                      const currentScoreMax =
+                        breakdownTermFilter === 'term-1'
+                          ? sb.term1.max
+                          : breakdownTermFilter === 'term-2'
+                          ? sb.term2.max
+                          : sb.yearMax;
+
+                      return (
+                        <div
+                          key={sb.subject.id}
+                          className="bg-white rounded-3xl border border-slate-200 shadow-xs hover:border-indigo-200 transition-all overflow-hidden"
+                        >
+                          {/* Subject Header Strip */}
+                          <div
+                            onClick={() => handleToggleExpandBreakdownSubject(sb.subject.id)}
+                            className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer bg-gradient-to-r from-slate-50/70 via-white to-indigo-50/30 hover:bg-slate-100/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                                {sb.grade}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-200/80 text-slate-700 font-bold">
+                                    {sb.subject.code}
+                                  </span>
+                                  <span className="text-xs text-slate-500 font-medium">
+                                    {sb.subject.credit} หน่วยกิต
+                                  </span>
+                                </div>
+                                <h4 className="text-base font-bold text-slate-900 mt-0.5 flex items-center gap-2">
+                                  <span>{sb.subject.name}</span>
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${sb.gradeBadge}`}
+                                  >
+                                    เกรด {sb.grade} ({sb.description})
+                                  </span>
+                                </h4>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                              {/* 3 mini pill indicators */}
+                              <div className="hidden lg:flex items-center gap-2 text-xs">
+                                <span className="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">
+                                  📁 เก็บ: {regularData.earned}/{regularData.max} ({regularData.percentage}%)
+                                </span>
+                                <span className="px-2.5 py-1 rounded-xl bg-sky-50 text-sky-800 border border-sky-200 font-semibold">
+                                  📝 กลาง: {midtermData.earned}/{midtermData.max} ({midtermData.percentage}%)
+                                </span>
+                                <span className="px-2.5 py-1 rounded-xl bg-purple-50 text-purple-800 border border-purple-200 font-semibold">
+                                  🎯 ปลาย: {finalData.earned}/{finalData.max} ({finalData.percentage}%)
+                                </span>
+                              </div>
+
+                              <div className="text-right">
+                                <div className="text-lg sm:text-xl font-black text-indigo-700 font-mono">
+                                  {currentScoreTotal}{' '}
+                                  <span className="text-xs font-normal text-slate-400">
+                                    / {currentScoreMax}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] font-bold text-slate-500">
+                                  {breakdownTermFilter === 'term-1'
+                                    ? 'คะแนนเทอม 1'
+                                    : breakdownTermFilter === 'term-2'
+                                    ? 'คะแนนเทอม 2'
+                                    : 'คะแนนรวมทั้งปี'}
+                                </div>
+                              </div>
+
+                              <div className="p-1 rounded-lg text-slate-400">
+                                {isCollapsed ? (
+                                  <ChevronDown className="w-5 h-5 text-indigo-600" />
+                                ) : (
+                                  <ChevronRight className="w-5 h-5 text-slate-400" />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Expanded 3 Categories Breakdown Content */}
+                          {!isCollapsed && (
+                            <div className="p-4 sm:p-5 pt-0 space-y-4 border-t border-slate-100">
+                              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-3">
+                                {/* PART 1: REGULAR ASSIGNMENTS */}
+                                {showRegular && (
+                                  <div className="rounded-2xl border border-emerald-200/90 bg-emerald-50/20 overflow-hidden flex flex-col justify-between">
+                                    <div className="p-3.5 border-b border-emerald-100 bg-emerald-50/70 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+                                          1
+                                        </div>
+                                        <div>
+                                          <h5 className="font-bold text-xs text-emerald-950">
+                                            คะแนนเก็บระหว่างเรียน
+                                          </h5>
+                                          <span className="text-[10px] text-emerald-700">
+                                            ใบงาน / แบบฝึกหัด ({regularData.itemsCount} รายการ)
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="font-mono font-bold text-xs text-emerald-950">
+                                          {regularData.earned} / {regularData.max}
+                                        </div>
+                                        <div className="text-[10px] font-extrabold text-emerald-700">
+                                          {regularData.percentage}%
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Items List */}
+                                    <div className="divide-y divide-emerald-100/60 p-2 space-y-1">
+                                      {regularData.items.length === 0 ? (
+                                        <div className="p-3 text-center text-xs text-slate-400 italic">
+                                          ไม่มีรายการคะแนนเก็บในหมวดนี้
+                                        </div>
+                                      ) : (
+                                        regularData.items.map((it, itemIdx) => (
+                                          <div
+                                            key={`${it.item.id}_${itemIdx}`}
+                                            className="p-2 rounded-xl bg-white/90 border border-emerald-100/70 text-xs flex items-center justify-between gap-2 shadow-2xs"
+                                          >
+                                            <div className="min-w-0 pr-1">
+                                              <div className="font-medium text-slate-800 truncate">
+                                                {it.item.name}
+                                              </div>
+                                              <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                {'termName' in it && <span>{(it as any).termName} •</span>}
+                                                <span>เต็ม {it.item.max_score} คะแนน</span>
+                                                {it.note && (
+                                                  <span className="text-amber-700 italic">
+                                                    • {it.note}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            <div className="shrink-0 text-right">
+                                              {it.status === 'absent' ? (
+                                                <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 font-bold text-[10px]">
+                                                  ขาดสอบ
+                                                </span>
+                                              ) : it.status === 'missing' ? (
+                                                <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">
+                                                  ค้างส่ง
+                                                </span>
+                                              ) : typeof it.score === 'number' ? (
+                                                <span className="font-mono font-bold text-emerald-950">
+                                                  {it.score}{' '}
+                                                  <span className="text-slate-400 font-normal">
+                                                    /{it.item.max_score}
+                                                  </span>
+                                                </span>
+                                              ) : (
+                                                <span className="text-slate-400 italic text-[11px]">
+                                                  -
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* PART 2: MIDTERM EXAM */}
+                                {showMidterm && (
+                                  <div className="rounded-2xl border border-sky-200/90 bg-sky-50/20 overflow-hidden flex flex-col justify-between">
+                                    <div className="p-3.5 border-b border-sky-100 bg-sky-50/70 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-xs">
+                                          2
+                                        </div>
+                                        <div>
+                                          <h5 className="font-bold text-xs text-sky-950">
+                                            คะแนนสอบกลางภาค
+                                          </h5>
+                                          <span className="text-[10px] text-sky-700">
+                                            การวัดผลกลางภาค ({midtermData.itemsCount} รายการ)
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="font-mono font-bold text-xs text-sky-950">
+                                          {midtermData.earned} / {midtermData.max}
+                                        </div>
+                                        <div className="text-[10px] font-extrabold text-sky-700">
+                                          {midtermData.percentage}%
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Items List */}
+                                    <div className="divide-y divide-sky-100/60 p-2 space-y-1">
+                                      {midtermData.items.length === 0 ? (
+                                        <div className="p-3 text-center text-xs text-slate-400 italic">
+                                          ไม่มีรายการสอบกลางภาคในหมวดนี้
+                                        </div>
+                                      ) : (
+                                        midtermData.items.map((it, itemIdx) => (
+                                          <div
+                                            key={`${it.item.id}_${itemIdx}`}
+                                            className="p-2 rounded-xl bg-white/90 border border-sky-100/70 text-xs flex items-center justify-between gap-2 shadow-2xs"
+                                          >
+                                            <div className="min-w-0 pr-1">
+                                              <div className="font-medium text-slate-800 truncate">
+                                                {it.item.name}
+                                              </div>
+                                              <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                {'termName' in it && <span>{(it as any).termName} •</span>}
+                                                <span>เต็ม {it.item.max_score} คะแนน</span>
+                                                {it.note && (
+                                                  <span className="text-amber-700 italic">
+                                                    • {it.note}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            <div className="shrink-0 text-right">
+                                              {it.status === 'absent' ? (
+                                                <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 font-bold text-[10px]">
+                                                  ขาดสอบ
+                                                </span>
+                                              ) : it.status === 'missing' ? (
+                                                <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">
+                                                  ค้างส่ง
+                                                </span>
+                                              ) : typeof it.score === 'number' ? (
+                                                <span className="font-mono font-bold text-sky-950">
+                                                  {it.score}{' '}
+                                                  <span className="text-slate-400 font-normal">
+                                                    /{it.item.max_score}
+                                                  </span>
+                                                </span>
+                                              ) : (
+                                                <span className="text-slate-400 italic text-[11px]">
+                                                  -
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* PART 3: FINAL EXAM */}
+                                {showFinal && (
+                                  <div className="rounded-2xl border border-purple-200/90 bg-purple-50/20 overflow-hidden flex flex-col justify-between">
+                                    <div className="p-3.5 border-b border-purple-100 bg-purple-50/70 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-xs">
+                                          3
+                                        </div>
+                                        <div>
+                                          <h5 className="font-bold text-xs text-purple-950">
+                                            คะแนนสอบปลายภาค
+                                          </h5>
+                                          <span className="text-[10px] text-purple-700">
+                                            การวัดผลปลายภาค ({finalData.itemsCount} รายการ)
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="font-mono font-bold text-xs text-purple-950">
+                                          {finalData.earned} / {finalData.max}
+                                        </div>
+                                        <div className="text-[10px] font-extrabold text-purple-700">
+                                          {finalData.percentage}%
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Items List */}
+                                    <div className="divide-y divide-purple-100/60 p-2 space-y-1">
+                                      {finalData.items.length === 0 ? (
+                                        <div className="p-3 text-center text-xs text-slate-400 italic">
+                                          ไม่มีรายการสอบปลายภาคในหมวดนี้
+                                        </div>
+                                      ) : (
+                                        finalData.items.map((it, itemIdx) => (
+                                          <div
+                                            key={`${it.item.id}_${itemIdx}`}
+                                            className="p-2 rounded-xl bg-white/90 border border-purple-100/70 text-xs flex items-center justify-between gap-2 shadow-2xs"
+                                          >
+                                            <div className="min-w-0 pr-1">
+                                              <div className="font-medium text-slate-800 truncate">
+                                                {it.item.name}
+                                              </div>
+                                              <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                {'termName' in it && <span>{(it as any).termName} •</span>}
+                                                <span>เต็ม {it.item.max_score} คะแนน</span>
+                                                {it.note && (
+                                                  <span className="text-amber-700 italic">
+                                                    • {it.note}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            <div className="shrink-0 text-right">
+                                              {it.status === 'absent' ? (
+                                                <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 font-bold text-[10px]">
+                                                  ขาดสอบ
+                                                </span>
+                                              ) : it.status === 'missing' ? (
+                                                <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">
+                                                  ค้างส่ง
+                                                </span>
+                                              ) : typeof it.score === 'number' ? (
+                                                <span className="font-mono font-bold text-purple-950">
+                                                  {it.score}{' '}
+                                                  <span className="text-slate-400 font-normal">
+                                                    /{it.item.max_score}
+                                                  </span>
+                                                </span>
+                                              ) : (
+                                                <span className="text-slate-400 italic text-[11px]">
+                                                  -
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             )}
@@ -1068,55 +2312,124 @@ export const StudentPortalPage: React.FC<StudentPortalPageProps> = ({
                             )}
                           </button>
 
-                          {/* Expanded Items Breakdown */}
+                          {/* Expanded Items Breakdown grouped by 3 main parts */}
                           {isExpanded && (
-                            <div className="mt-3 pt-3 border-t border-slate-100 space-y-2 animate-fadeIn">
-                              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                รายการคะแนนย่อย ({items.length} รายการ)
+                            <div className="mt-3 pt-3 border-t border-slate-100 space-y-3 animate-fadeIn">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
+                                <span>แจงคะแนนย่อยตาม 3 ส่วนหลัก ({items.length} รายการ)</span>
+                                <span className="text-indigo-600">คะแนนเต็มรวม {items.reduce((acc, it) => acc + (it.max_score || 0), 0)} คะแนน</span>
                               </div>
-                              {items.map((item) => {
-                                const scoreRecord = allScores.find(
-                                  (s) =>
-                                    s.student_id === selectedStudent.id &&
-                                    s.score_item_id === item.id
-                                );
 
-                                const isAbsent = scoreRecord?.status === 'absent';
-                                const isMissing = scoreRecord?.status === 'missing';
-                                const point = scoreRecord?.score;
+                              {(['regular', 'midterm', 'final'] as const).map((cat) => {
+                                const catItems = items.filter((it) => getItemCategory(it) === cat);
+                                if (catItems.length === 0) return null;
+
+                                const catTitle =
+                                  cat === 'regular'
+                                    ? '1. คะแนนเก็บระหว่างเรียน'
+                                    : cat === 'midterm'
+                                    ? '2. คะแนนสอบกลางภาค'
+                                    : '3. คะแนนสอบปลายภาค';
+
+                                const catSubtitle =
+                                  cat === 'regular'
+                                    ? 'ใบงาน / แบบฝึกหัด / กิจกรรม'
+                                    : cat === 'midterm'
+                                    ? 'การวัดผลกลางภาคเรียน'
+                                    : 'การวัดผลปลายภาคเรียน';
+
+                                const catColor =
+                                  cat === 'regular'
+                                    ? 'border-emerald-200 bg-emerald-50/40 text-emerald-950'
+                                    : cat === 'midterm'
+                                    ? 'border-sky-200 bg-sky-50/40 text-sky-950'
+                                    : 'border-purple-200 bg-purple-50/40 text-purple-950';
+
+                                const catBadgeColor =
+                                  cat === 'regular'
+                                    ? 'bg-emerald-600 text-white'
+                                    : cat === 'midterm'
+                                    ? 'bg-sky-600 text-white'
+                                    : 'bg-purple-600 text-white';
+
+                                let catEarned = 0;
+                                let catMax = 0;
+                                catItems.forEach((it) => {
+                                  catMax += it.max_score || 0;
+                                  const sc = allScores.find(
+                                    (s) => s.student_id === selectedStudent.id && s.score_item_id === it.id
+                                  );
+                                  if (sc && sc.status === 'normal' && typeof sc.score === 'number') {
+                                    catEarned += sc.score;
+                                  }
+                                });
 
                                 return (
-                                  <div
-                                    key={item.id}
-                                    className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs"
-                                  >
-                                    <div className="min-w-0 pr-2">
-                                      <div className="font-medium text-slate-800 truncate">
-                                        {item.name}
+                                  <div key={cat} className={`rounded-xl border p-2.5 space-y-2 ${catColor}`}>
+                                    <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-200/60">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`w-4 h-4 rounded-full flex items-center justify-center font-bold text-[10px] ${catBadgeColor}`}>
+                                          {cat === 'regular' ? '1' : cat === 'midterm' ? '2' : '3'}
+                                        </span>
+                                        <span className="font-bold">{catTitle}</span>
+                                        <span className="text-[10px] text-slate-500 hidden sm:inline">({catSubtitle})</span>
                                       </div>
-                                      {scoreRecord?.note && (
-                                        <div className="text-[11px] text-amber-700 italic">
-                                          หมายเหตุ: {scoreRecord.note}
-                                        </div>
-                                      )}
+                                      <div className="font-mono font-bold text-xs">
+                                        {Math.round(catEarned * 10) / 10}{' '}
+                                        <span className="text-slate-400 font-normal">/ {catMax}</span>
+                                      </div>
                                     </div>
 
-                                    <div className="shrink-0 text-right">
-                                      {isAbsent ? (
-                                        <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[11px]">
-                                          ขาดสอบ (ร)
-                                        </span>
-                                      ) : isMissing ? (
-                                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[11px]">
-                                          ไม่ส่งงาน (มส)
-                                        </span>
-                                      ) : point !== null && point !== undefined ? (
-                                        <span className="font-mono font-bold text-slate-900">
-                                          {point} <span className="text-slate-400 font-normal">/ {item.max_score}</span>
-                                        </span>
-                                      ) : (
-                                        <span className="text-slate-400 italic">ยังไม่กรอก</span>
-                                      )}
+                                    <div className="space-y-1.5">
+                                      {catItems.map((item) => {
+                                        const scoreRecord = allScores.find(
+                                          (s) =>
+                                            s.student_id === selectedStudent.id &&
+                                            s.score_item_id === item.id
+                                        );
+                                        const isAbsent = scoreRecord?.status === 'absent';
+                                        const isMissing = scoreRecord?.status === 'missing';
+                                        const point = scoreRecord?.score;
+
+                                        return (
+                                          <div
+                                            key={item.id}
+                                            className="p-2 rounded-lg bg-white/90 border border-slate-100 flex items-center justify-between text-xs shadow-2xs"
+                                          >
+                                            <div className="min-w-0 pr-2">
+                                              <div className="font-medium text-slate-800 truncate">
+                                                {item.name}
+                                              </div>
+                                              <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                <span>เต็ม {item.max_score} คะแนน</span>
+                                                {scoreRecord?.note && (
+                                                  <span className="text-amber-700 italic">
+                                                    • {scoreRecord.note}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            <div className="shrink-0 text-right">
+                                              {isAbsent ? (
+                                                <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[10px]">
+                                                  ขาดสอบ (ร)
+                                                </span>
+                                              ) : isMissing ? (
+                                                <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">
+                                                  ไม่ส่งงาน (มส)
+                                                </span>
+                                              ) : point !== null && point !== undefined ? (
+                                                <span className="font-mono font-bold text-slate-900">
+                                                  {point} <span className="text-slate-400 font-normal">/ {item.max_score}</span>
+                                                </span>
+                                              ) : (
+                                                <span className="text-slate-400 italic">ยังไม่กรอก</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 );
